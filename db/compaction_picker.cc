@@ -130,8 +130,9 @@ CompressionOptions GetCompressionOptions(const ImmutableCFOptions& ioptions,
 }
 
 CompactionPicker::CompactionPicker(const ImmutableCFOptions& ioptions,
-                                   const InternalKeyComparator* icmp)
-    : ioptions_(ioptions), icmp_(icmp) {}
+                                   const InternalKeyComparator* icmp,
+                                   DbPathPicker* db_path_picker)
+    : ioptions_(ioptions), icmp_(icmp), db_path_picker_(db_path_picker) {}
 
 CompactionPicker::~CompactionPicker() {}
 
@@ -1096,13 +1097,15 @@ class LevelCompactionBuilder {
                          CompactionPicker* compaction_picker,
                          LogBuffer* log_buffer,
                          const MutableCFOptions& mutable_cf_options,
-                         const ImmutableCFOptions& ioptions)
+                         const ImmutableCFOptions& ioptions,
+                         DbPathPicker* db_path_picker)
       : cf_name_(cf_name),
         vstorage_(vstorage),
         compaction_picker_(compaction_picker),
         log_buffer_(log_buffer),
         mutable_cf_options_(mutable_cf_options),
-        ioptions_(ioptions) {}
+        ioptions_(ioptions),
+        db_path_picker_(db_path_picker) {}
 
   // Pick and return a compaction.
   Compaction* PickCompaction();
@@ -1159,12 +1162,10 @@ class LevelCompactionBuilder {
 
   const MutableCFOptions& mutable_cf_options_;
   const ImmutableCFOptions& ioptions_;
-  // Pick a path ID to place a newly generated file, with its level
-  static uint32_t GetPathId(const ImmutableCFOptions& ioptions,
-                            const MutableCFOptions& mutable_cf_options,
-                            int level);
 
   static const int kMinFilesForIntraL0Compaction = 4;
+ private:
+  DbPathPicker* db_path_picker_;
 };
 
 void LevelCompactionBuilder::PickExpiredTtlFiles() {
@@ -1376,7 +1377,7 @@ Compaction* LevelCompactionBuilder::GetCompaction() {
                           ioptions_.compaction_style, vstorage_->base_level(),
                           ioptions_.level_compaction_dynamic_level_bytes),
       mutable_cf_options_.max_compaction_bytes,
-      GetPathId(ioptions_, mutable_cf_options_, output_level_),
+      db_path_picker_->PickPathID(output_level_),
       GetCompressionType(ioptions_, vstorage_, mutable_cf_options_,
                          output_level_, vstorage_->base_level()),
       GetCompressionOptions(ioptions_, vstorage_, output_level_),
@@ -1393,60 +1394,6 @@ Compaction* LevelCompactionBuilder::GetCompaction() {
   // here
   vstorage_->ComputeCompactionScore(ioptions_, mutable_cf_options_);
   return c;
-}
-
-/*
- * Find the optimal path to place a file
- * Given a level, finds the path where levels up to it will fit in levels
- * up to and including this path
- */
-uint32_t LevelCompactionBuilder::GetPathId(
-    const ImmutableCFOptions& ioptions,
-    const MutableCFOptions& mutable_cf_options, int level) {
-  uint32_t p = 0;
-  assert(!ioptions.cf_paths.empty());
-
-  // size remaining in the most recent path
-  uint64_t current_path_size = ioptions.cf_paths[0].target_size;
-
-  uint64_t level_size;
-  int cur_level = 0;
-
-  // max_bytes_for_level_base denotes L1 size.
-  // We estimate L0 size to be the same as L1.
-  level_size = mutable_cf_options.max_bytes_for_level_base;
-
-  // Last path is the fallback
-  while (p < ioptions.cf_paths.size() - 1) {
-    if (level_size <= current_path_size) {
-      if (cur_level == level) {
-        // Does desired level fit in this path?
-        return p;
-      } else {
-        current_path_size -= level_size;
-        if (cur_level > 0) {
-          if (ioptions.level_compaction_dynamic_level_bytes) {
-            // Currently, level_compaction_dynamic_level_bytes is ignored when
-            // multiple db paths are specified. https://github.com/facebook/
-            // rocksdb/blob/master/db/column_family.cc.
-            // Still, adding this check to avoid accidentally using
-            // max_bytes_for_level_multiplier_additional
-            level_size = static_cast<uint64_t>(
-                level_size * mutable_cf_options.max_bytes_for_level_multiplier);
-          } else {
-            level_size = static_cast<uint64_t>(
-                level_size * mutable_cf_options.max_bytes_for_level_multiplier *
-                mutable_cf_options.MaxBytesMultiplerAdditional(cur_level));
-          }
-        }
-        cur_level++;
-        continue;
-      }
-    }
-    p++;
-    current_path_size = ioptions.cf_paths[p].target_size;
-  }
-  return p;
 }
 
 bool LevelCompactionBuilder::PickFileToCompact() {
@@ -1544,7 +1491,7 @@ Compaction* LevelCompactionPicker::PickCompaction(
     const std::string& cf_name, const MutableCFOptions& mutable_cf_options,
     VersionStorageInfo* vstorage, LogBuffer* log_buffer) {
   LevelCompactionBuilder builder(cf_name, vstorage, this, log_buffer,
-                                 mutable_cf_options, ioptions_);
+                                 mutable_cf_options, ioptions_, db_path_picker_);
   return builder.PickCompaction();
 }
 

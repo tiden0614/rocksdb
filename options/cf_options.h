@@ -66,8 +66,6 @@ struct ImmutableCFOptions {
   // Allow the OS to mmap file for writing. Default: false
   bool allow_mmap_writes;
 
-  std::vector<DbPath> db_paths;
-
   MemTableRepFactory* memtable_factory;
 
   TableFactory* table_factory;
@@ -120,6 +118,8 @@ struct ImmutableCFOptions {
   const SliceTransform* memtable_insert_with_hint_prefix_extractor;
 
   std::vector<DbPath> cf_paths;
+
+  DbPathUseStrategy cf_path_use_strategy;
 
   std::shared_ptr<ConcurrentTaskLimiter> compaction_thread_limiter;
 };

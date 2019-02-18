@@ -36,6 +36,7 @@ ImmutableDBOptions::ImmutableDBOptions(const DBOptions& options)
       statistics(options.statistics),
       use_fsync(options.use_fsync),
       db_paths(options.db_paths),
+      db_path_use_strategy(options.db_path_use_strategy),
       db_log_dir(options.db_log_dir),
       wal_dir(options.wal_dir),
       max_subcompactions(options.max_subcompactions),

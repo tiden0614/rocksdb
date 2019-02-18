@@ -432,6 +432,22 @@ ColumnFamilyData::ColumnFamilyData(
   // Convert user defined table properties collector factories to internal ones.
   GetIntTblPropCollectorFactory(ioptions_, &int_tbl_prop_collector_factories_);
 
+  // setup path id picker
+  switch (ioptions_.cf_path_use_strategy) {
+    case DbPathUseStrategy::kRandomlyChoosePath:
+      path_id_picker_.reset(new RandomDPP(ioptions_.cf_paths.size()));
+      break;
+    case DbPathUseStrategy::kRespectTargetSize:
+      switch (ioptions_.compaction_style) {
+        case CompactionStyle::kCompactionStyleUniversal:
+          path_id_picker_.reset(new UniversalTargetSizeDPP(*this));
+          break;
+        default:
+          path_id_picker_.reset(new LeveledTargetSizeDPP(*this));
+          break;
+      }
+  }
+
   // if _dummy_versions is nullptr, then this is a dummy column family.
   if (_dummy_versions != nullptr) {
     internal_stats_.reset(
@@ -439,17 +455,20 @@ ColumnFamilyData::ColumnFamilyData(
     table_cache_.reset(new TableCache(ioptions_, env_options, _table_cache));
     if (ioptions_.compaction_style == kCompactionStyleLevel) {
       compaction_picker_.reset(
-          new LevelCompactionPicker(ioptions_, &internal_comparator_));
+          new LevelCompactionPicker(ioptions_, &internal_comparator_,
+                  path_id_picker_.get()));
 #ifndef ROCKSDB_LITE
     } else if (ioptions_.compaction_style == kCompactionStyleUniversal) {
       compaction_picker_.reset(
-          new UniversalCompactionPicker(ioptions_, &internal_comparator_));
+          new UniversalCompactionPicker(ioptions_, &internal_comparator_,
+                  path_id_picker_.get()));
     } else if (ioptions_.compaction_style == kCompactionStyleFIFO) {
       compaction_picker_.reset(
-          new FIFOCompactionPicker(ioptions_, &internal_comparator_));
+          new FIFOCompactionPicker(ioptions_, &internal_comparator_,
+                  path_id_picker_.get()));
     } else if (ioptions_.compaction_style == kCompactionStyleNone) {
       compaction_picker_.reset(new NullCompactionPicker(
-          ioptions_, &internal_comparator_));
+          ioptions_, &internal_comparator_, path_id_picker_.get()));
       ROCKS_LOG_WARN(ioptions_.info_log,
                      "Column family %s does not use any background compaction. "
                      "Compactions can only be done via CompactFiles\n",
@@ -461,7 +480,8 @@ ColumnFamilyData::ColumnFamilyData(
                       "Column family %s will use kCompactionStyleLevel.\n",
                       ioptions_.compaction_style, GetName().c_str());
       compaction_picker_.reset(
-          new LevelCompactionPicker(ioptions_, &internal_comparator_));
+          new LevelCompactionPicker(ioptions_, &internal_comparator_,
+                  path_id_picker_.get()));
     }
 
     if (column_family_set_->NumberOfColumnFamilies() < 10) {
@@ -473,6 +493,7 @@ ColumnFamilyData::ColumnFamilyData(
       ROCKS_LOG_INFO(ioptions_.info_log, "\t(skipping printing options)\n");
     }
   }
+
 
   RecalculateWriteStallConditions(mutable_cf_options_);
 }
@@ -1356,6 +1377,129 @@ const Comparator* GetColumnFamilyUserComparator(
     return column_family->GetComparator();
   }
   return nullptr;
+}
+
+uint32_t ColumnFamilyData::PickPathID(int level) {
+  return path_id_picker_->PickPathID(level);
+}
+
+uint32_t ColumnFamilyData::PickPathID(int level, uint64_t file_size) {
+  return path_id_picker_->PickPathID(level, file_size);
+}
+
+RandomDPP::RandomDPP(size_t db_path_size)
+        : size_(db_path_size) {}
+
+uint32_t RandomDPP::PickPathID(int level, uint64_t file_size) {
+  UNUSED(level);
+  UNUSED(file_size);
+
+  if (size_ == 0) {
+    return DEFAULT_PATH_ID;
+  }
+
+  auto size32 = static_cast<uint32_t>(size_);
+
+  // TODO use a time based seed
+  Random rand(0);
+  return rand.Next() % size32;
+}
+
+UniversalTargetSizeDPP::UniversalTargetSizeDPP(rocksdb::ColumnFamilyData &cfd)
+: cfd_(&cfd) {}
+
+uint32_t UniversalTargetSizeDPP::PickPathID(int level, uint64_t file_size) {
+  UNUSED(level);
+
+  const MutableCFOptions* moptions = cfd_->GetCurrentMutableCFOptions();
+
+  // Two conditions need to be satisfied:
+  // (1) the target path needs to be able to hold the file's size
+  // (2) Total size left in this and previous paths need to be not
+  //     smaller than expected future file size before this new file is
+  //     compacted, which is estimated based on size_ratio.
+  // For example, if now we are compacting files of size (1, 1, 2, 4, 8),
+  // we will make sure the target file, probably with size of 16, will be
+  // placed in a path so that eventually when new files are generated and
+  // compacted to (1, 1, 2, 4, 8, 16), all those files can be stored in or
+  // before the path we chose.
+  //
+  // TODO(sdong): now the case of multiple column families is not
+  // considered in this algorithm. So the target size can be violated in
+  // that case. We need to improve it.
+  uint64_t accumulated_size = 0;
+  uint64_t future_size =
+          file_size *
+          (100 - moptions->compaction_options_universal.size_ratio) / 100;
+  uint32_t p = 0;
+  assert(!cfd_->ioptions()->cf_paths.empty());
+  for (; p < cfd_->ioptions()->cf_paths.size() - 1; p++) {
+    uint64_t target_size = cfd_->ioptions()->cf_paths[p].target_size;
+    if (target_size > file_size &&
+        accumulated_size + (target_size - file_size) > future_size) {
+      return p;
+    }
+    accumulated_size += target_size;
+  }
+  return p;
+}
+
+LeveledTargetSizeDPP::LeveledTargetSizeDPP(rocksdb::ColumnFamilyData &cfd)
+: cfd_(&cfd) {}
+
+uint32_t LeveledTargetSizeDPP::PickPathID(int level, uint64_t file_size) {
+  UNUSED(file_size);
+
+  const ImmutableCFOptions* ioptions = cfd_->ioptions();
+  const MutableCFOptions* moptions = cfd_->GetCurrentMutableCFOptions();
+
+  if (ioptions->cf_paths.empty()) {
+    return DEFAULT_PATH_ID;
+  }
+
+  uint32_t p = 0;
+
+  // size remaining in the most recent path
+  uint64_t current_path_size = ioptions->cf_paths[0].target_size;
+
+  uint64_t level_size;
+  int cur_level = 0;
+
+  // max_bytes_for_level_base denotes L1 size.
+  // We estimate L0 size to be the same as L1.
+  level_size = moptions->max_bytes_for_level_base;
+
+  // Last path is the fallback
+  while (p < ioptions->cf_paths.size() - 1) {
+    if (level_size <= current_path_size) {
+      if (cur_level == level) {
+        // Does desired level fit in this path?
+        return p;
+      } else {
+        current_path_size -= level_size;
+        if (cur_level > 0) {
+          if (ioptions->level_compaction_dynamic_level_bytes) {
+            // Currently, level_compaction_dynamic_level_bytes is ignored when
+            // multiple db paths are specified. https://github.com/facebook/
+            // rocksdb/blob/master/db/column_family.cc.
+            // Still, adding this check to avoid accidentally using
+            // max_bytes_for_level_multiplier_additional
+            level_size = static_cast<uint64_t>(
+                    level_size * moptions->max_bytes_for_level_multiplier);
+          } else {
+            level_size = static_cast<uint64_t>(
+                    level_size * moptions->max_bytes_for_level_multiplier *
+                    moptions->MaxBytesMultiplerAdditional(cur_level));
+          }
+        }
+        cur_level++;
+        continue;
+      }
+    }
+    p++;
+    current_path_size = ioptions->cf_paths[p].target_size;
+  }
+  return p;
 }
 
 }  // namespace rocksdb

@@ -97,7 +97,7 @@ FlushJob::FlushJob(const std::string& dbname, ColumnFamilyData* cfd,
                    SequenceNumber earliest_write_conflict_snapshot,
                    SnapshotChecker* snapshot_checker, JobContext* job_context,
                    LogBuffer* log_buffer, Directory* db_directory,
-                   Directory* output_file_directory,
+                   uint32_t path_id, Directory* output_file_directory,
                    CompressionType output_compression, Statistics* stats,
                    EventLogger* event_logger, bool measure_io_stats,
                    const bool sync_output_directory, const bool write_manifest,
@@ -117,6 +117,7 @@ FlushJob::FlushJob(const std::string& dbname, ColumnFamilyData* cfd,
       job_context_(job_context),
       log_buffer_(log_buffer),
       db_directory_(db_directory),
+      output_path_id_(path_id),
       output_file_directory_(output_file_directory),
       output_compression_(output_compression),
       stats_(stats),
@@ -188,7 +189,7 @@ void FlushJob::PickMemTable() {
   edit_->SetColumnFamily(cfd_->GetID());
 
   // path 0 for level 0 file.
-  meta_.fd = FileDescriptor(versions_->NewFileNumber(), 0, 0);
+  meta_.fd = FileDescriptor(versions_->NewFileNumber(), 0, output_path_id_);
 
   base_ = cfd_->current();
   base_->Ref();  // it is likely that we do not need this reference

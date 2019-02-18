@@ -65,7 +65,7 @@ class FlushJob {
            std::vector<SequenceNumber> existing_snapshots,
            SequenceNumber earliest_write_conflict_snapshot,
            SnapshotChecker* snapshot_checker, JobContext* job_context,
-           LogBuffer* log_buffer, Directory* db_directory,
+           LogBuffer* log_buffer, Directory* db_directory, uint32_t path_id,
            Directory* output_file_directory, CompressionType output_compression,
            Statistics* stats, EventLogger* event_logger, bool measure_io_stats,
            const bool sync_output_directory, const bool write_manifest,
@@ -108,6 +108,7 @@ class FlushJob {
   JobContext* job_context_;
   LogBuffer* log_buffer_;
   Directory* db_directory_;
+  uint32_t output_path_id_;
   Directory* output_file_directory_;
   CompressionType output_compression_;
   Statistics* stats_;

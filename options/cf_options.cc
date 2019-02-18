@@ -46,7 +46,6 @@ ImmutableCFOptions::ImmutableCFOptions(const ImmutableDBOptions& db_options,
       env(db_options.env),
       allow_mmap_reads(db_options.allow_mmap_reads),
       allow_mmap_writes(db_options.allow_mmap_writes),
-      db_paths(db_options.db_paths),
       memtable_factory(cf_options.memtable_factory.get()),
       table_factory(cf_options.table_factory.get()),
       table_properties_collector_factories(
@@ -77,7 +76,16 @@ ImmutableCFOptions::ImmutableCFOptions(const ImmutableDBOptions& db_options,
       memtable_insert_with_hint_prefix_extractor(
           cf_options.memtable_insert_with_hint_prefix_extractor.get()),
       cf_paths(cf_options.cf_paths),
-      compaction_thread_limiter(cf_options.compaction_thread_limiter) {}
+      cf_path_use_strategy(cf_options.cf_path_use_strategy),
+      compaction_thread_limiter(cf_options.compaction_thread_limiter) {
+  // if no cf_paths was specified, use db_paths
+  if (cf_paths.empty()) {
+    for (auto &db_path : db_options.db_paths) {
+      cf_paths.push_back(db_path);
+    }
+    cf_path_use_strategy = db_options.db_path_use_strategy;
+  }
+}
 
 // Multiple two operands. If they overflow, return op1.
 uint64_t MultiplyCheckOverflow(uint64_t op1, double op2) {

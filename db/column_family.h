@@ -26,6 +26,8 @@
 #include "rocksdb/options.h"
 #include "util/thread_local.h"
 
+#define UNUSED(expr) do { (void)(expr); } while (0)
+
 namespace rocksdb {
 
 class Version;
@@ -42,9 +44,11 @@ class DBImpl;
 class LogBuffer;
 class InstrumentedMutex;
 class InstrumentedMutexLock;
+class DbPathPicker;
 struct SuperVersionContext;
 
 extern const double kIncSlowdownRatio;
+static const uint32_t DEFAULT_PATH_ID = static_cast<const uint32_t>(0);
 
 // ColumnFamilyHandleImpl is the class that clients use to access different
 // column families. It has non-trivial destructor, which gets called when client
@@ -385,8 +389,12 @@ class ColumnFamilyData {
 
   ThreadLocalPtr* TEST_GetLocalSV() { return local_sv_.get(); }
 
+  uint32_t PickPathID(int level);
+  uint32_t PickPathID(int level, uint64_t file_size);
+
  private:
   friend class ColumnFamilySet;
+  friend class DbPathPicker;
   ColumnFamilyData(uint32_t id, const std::string& name,
                    Version* dummy_versions, Cache* table_cache,
                    WriteBufferManager* write_buffer_manager,
@@ -471,6 +479,8 @@ class ColumnFamilyData {
 
   // Directories corresponding to cf_paths.
   std::vector<std::unique_ptr<Directory>> data_dirs_;
+
+  std::unique_ptr<DbPathPicker> path_id_picker_;
 };
 
 // ColumnFamilySet has interesting thread-safety requirements
@@ -629,5 +639,47 @@ extern uint32_t GetColumnFamilyID(ColumnFamilyHandle* column_family);
 
 extern const Comparator* GetColumnFamilyUserComparator(
     ColumnFamilyHandle* column_family);
+
+class DbPathPicker {
+ public:
+  virtual ~DbPathPicker() = default;
+
+  uint32_t PickPathID(int level) {
+    return PickPathID(level, 0);
+  }
+
+  virtual uint32_t PickPathID(int level, uint64_t size) {
+    UNUSED(level);
+    UNUSED(size);
+    return DEFAULT_PATH_ID;
+  }
+};
+
+class UniversalTargetSizeDPP : public DbPathPicker {
+ public:
+  explicit UniversalTargetSizeDPP(ColumnFamilyData& cfd);
+  uint32_t PickPathID(int level, uint64_t file_size) override;
+
+ private:
+  ColumnFamilyData* cfd_;
+};
+
+class RandomDPP : public DbPathPicker {
+ public:
+  explicit RandomDPP(size_t db_path_size);
+  uint32_t PickPathID(int level, uint64_t file_size) override;
+
+ private:
+  size_t size_;
+};
+
+class LeveledTargetSizeDPP : public DbPathPicker {
+ public:
+  explicit LeveledTargetSizeDPP(ColumnFamilyData& cfd);
+  uint32_t PickPathID(int level, uint64_t file_size) override;
+
+ private:
+  ColumnFamilyData* cfd_;
+};
 
 }  // namespace rocksdb

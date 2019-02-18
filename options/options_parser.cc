@@ -606,6 +606,13 @@ bool AreEqualOptions(
       }
       return false;
     }
+    case OptionType::kDbPathUseStrategy: {
+      DbPathUseStrategy lhs =
+              *reinterpret_cast<const DbPathUseStrategy *>(offset1);
+      DbPathUseStrategy rhs =
+              *reinterpret_cast<const DbPathUseStrategy *>(offset2);
+      return lhs == rhs;
+    }
     default:
       if (type_info.verification == OptionVerificationType::kByName ||
           type_info.verification ==

@@ -80,6 +80,7 @@ enum class OptionType {
   kAccessHint,
   kInfoLogLevel,
   kLRUCacheOptions,
+  kDbPathUseStrategy,
   kUnknown
 };
 
@@ -153,6 +154,8 @@ struct OptionsHelper {
   static std::unordered_map<std::string, ChecksumType> checksum_type_string_map;
   static std::unordered_map<std::string, CompressionType>
       compression_type_string_map;
+  static std::unordered_map<std::string, DbPathUseStrategy>
+          db_path_use_strategy_type_string_map;
 #ifndef ROCKSDB_LITE
   static std::unordered_map<std::string, OptionTypeInfo> cf_options_type_info;
   static std::unordered_map<std::string, OptionTypeInfo>
@@ -221,6 +224,8 @@ static auto& wal_recovery_mode_string_map =
 static auto& access_hint_string_map = OptionsHelper::access_hint_string_map;
 static auto& info_log_level_string_map =
     OptionsHelper::info_log_level_string_map;
+static auto& db_path_use_strategy_string_map =
+    OptionsHelper::db_path_use_strategy_type_string_map;
 #endif  // !ROCKSDB_LITE
 
 }  // namespace rocksdb

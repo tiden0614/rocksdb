@@ -16,8 +16,9 @@ namespace rocksdb {
 class UniversalCompactionPicker : public CompactionPicker {
  public:
   UniversalCompactionPicker(const ImmutableCFOptions& ioptions,
-                            const InternalKeyComparator* icmp)
-      : CompactionPicker(ioptions, icmp) {}
+                            const InternalKeyComparator* icmp,
+                            DbPathPicker* db_path_picker)
+      : CompactionPicker(ioptions, icmp, db_path_picker) {}
   virtual Compaction* PickCompaction(const std::string& cf_name,
                                      const MutableCFOptions& mutable_cf_options,
                                      VersionStorageInfo* vstorage,
@@ -87,12 +88,6 @@ class UniversalCompactionPicker : public CompactionPicker {
   static std::vector<SortedRun> CalculateSortedRuns(
       const VersionStorageInfo& vstorage, const ImmutableCFOptions& ioptions,
       const MutableCFOptions& mutable_cf_options);
-
-  // Pick a path ID to place a newly generated file, with its estimated file
-  // size.
-  static uint32_t GetPathId(const ImmutableCFOptions& ioptions,
-                            const MutableCFOptions& mutable_cf_options,
-                            uint64_t file_size);
 };
 }  // namespace rocksdb
 #endif  // !ROCKSDB_LITE

@@ -32,7 +32,8 @@ struct CompactionInputFiles;
 class CompactionPicker {
  public:
   CompactionPicker(const ImmutableCFOptions& ioptions,
-                   const InternalKeyComparator* icmp);
+                   const InternalKeyComparator* icmp,
+                   DbPathPicker* db_path_picker);
   virtual ~CompactionPicker();
 
   // Pick level and inputs for a new compaction.
@@ -218,13 +219,16 @@ class CompactionPicker {
   std::unordered_set<Compaction*> compactions_in_progress_;
 
   const InternalKeyComparator* const icmp_;
+
+  DbPathPicker* db_path_picker_;
 };
 
 class LevelCompactionPicker : public CompactionPicker {
  public:
   LevelCompactionPicker(const ImmutableCFOptions& ioptions,
-                        const InternalKeyComparator* icmp)
-      : CompactionPicker(ioptions, icmp) {}
+                        const InternalKeyComparator* icmp,
+                        DbPathPicker* db_path_picker)
+      : CompactionPicker(ioptions, icmp, db_path_picker) {}
   virtual Compaction* PickCompaction(const std::string& cf_name,
                                      const MutableCFOptions& mutable_cf_options,
                                      VersionStorageInfo* vstorage,
@@ -238,8 +242,9 @@ class LevelCompactionPicker : public CompactionPicker {
 class NullCompactionPicker : public CompactionPicker {
  public:
   NullCompactionPicker(const ImmutableCFOptions& ioptions,
-                       const InternalKeyComparator* icmp)
-      : CompactionPicker(ioptions, icmp) {}
+                       const InternalKeyComparator* icmp,
+                       DbPathPicker* db_path_picker)
+      : CompactionPicker(ioptions, icmp, db_path_picker) {}
   virtual ~NullCompactionPicker() {}
 
   // Always return "nullptr"

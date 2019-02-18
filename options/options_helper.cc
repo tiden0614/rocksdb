@@ -48,6 +48,7 @@ DBOptions BuildDBOptions(const ImmutableDBOptions& immutable_db_options,
   options.statistics = immutable_db_options.statistics;
   options.use_fsync = immutable_db_options.use_fsync;
   options.db_paths = immutable_db_options.db_paths;
+  options.db_path_use_strategy = immutable_db_options.db_path_use_strategy;
   options.db_log_dir = immutable_db_options.db_log_dir;
   options.wal_dir = immutable_db_options.wal_dir;
   options.delete_obsolete_files_period_micros =
@@ -239,6 +240,11 @@ std::unordered_map<std::string, CompressionType>
         {"kZSTD", kZSTD},
         {"kZSTDNotFinalCompression", kZSTDNotFinalCompression},
         {"kDisableCompressionOption", kDisableCompressionOption}};
+
+std::unordered_map<std::string, DbPathUseStrategy>
+        OptionsHelper::db_path_use_strategy_type_string_map = {
+        {"kRespectTargetSize", kRespectTargetSize},
+        {"kRandomlyChoosePath", kRandomlyChoosePath}};
 #ifndef ROCKSDB_LITE
 
 const std::string kNameComparator = "comparator";
@@ -555,6 +561,10 @@ bool ParseOptionHelper(char* opt_address, const OptionType& opt_type,
       return ParseEnum<CompactionStopStyle>(
           compaction_stop_style_string_map, value,
           reinterpret_cast<CompactionStopStyle*>(opt_address));
+    case OptionType::kDbPathUseStrategy:
+      return ParseEnum<DbPathUseStrategy >(
+              db_path_use_strategy_string_map, value,
+              reinterpret_cast<DbPathUseStrategy*>(opt_address));
     default:
       return false;
   }
@@ -747,6 +757,10 @@ bool SerializeSingleOptionHelper(const char* opt_address,
       return SerializeEnum<CompactionStopStyle>(
           compaction_stop_style_string_map,
           *reinterpret_cast<const CompactionStopStyle*>(opt_address), value);
+    case OptionType::kDbPathUseStrategy:
+      return SerializeEnum<DbPathUseStrategy >(
+              db_path_use_strategy_string_map,
+              *reinterpret_cast<const DbPathUseStrategy*>(opt_address), value);
     default:
       return false;
   }
@@ -1604,7 +1618,11 @@ std::unordered_map<std::string, OptionTypeInfo>
         {"atomic_flush",
          {offsetof(struct DBOptions, atomic_flush), OptionType::kBoolean,
           OptionVerificationType::kNormal, false,
-          offsetof(struct ImmutableDBOptions, atomic_flush)}}};
+          offsetof(struct ImmutableDBOptions, atomic_flush)}},
+        {"db_path_use_strategy",
+         {offsetof(struct DBOptions, db_path_use_strategy),
+          OptionType::kDbPathUseStrategy,
+          OptionVerificationType::kNormal, false, 0}}};
 
 std::unordered_map<std::string, BlockBasedTableOptions::IndexType>
     OptionsHelper::block_base_table_index_type_string_map = {
@@ -1942,6 +1960,10 @@ std::unordered_map<std::string, OptionTypeInfo>
          {offset_of(&ColumnFamilyOptions::ttl), OptionType::kUInt64T,
           OptionVerificationType::kNormal, true,
           offsetof(struct MutableCFOptions, ttl)}},
+        {"cf_path_use_strategy",
+          {offset_of(&ColumnFamilyOptions::cf_path_use_strategy),
+           OptionType::kDbPathUseStrategy,
+           OptionVerificationType::kNormal, true, 0}},
         {"sample_for_compression",
          {offset_of(&ColumnFamilyOptions::sample_for_compression),
           OptionType::kUInt64T, OptionVerificationType::kNormal, true,
