@@ -26,10 +26,13 @@ class CountingLogger : public Logger {
   size_t log_count;
 };
 
+class FakeDPP : public DbPathPicker {};
+
 class CompactionPickerTest : public testing::Test {
  public:
   const Comparator* ucmp_;
   InternalKeyComparator icmp_;
+  std::unique_ptr<DbPathPicker> db_path_picker_;
   Options options_;
   ImmutableCFOptions ioptions_;
   MutableCFOptions mutable_cf_options_;
@@ -50,9 +53,10 @@ class CompactionPickerTest : public testing::Test {
   CompactionPickerTest()
       : ucmp_(BytewiseComparator()),
         icmp_(ucmp_),
+        db_path_picker_(new FakeDPP()),
         ioptions_(options_),
         mutable_cf_options_(options_),
-        level_compaction_picker(ioptions_, &icmp_),
+        level_compaction_picker(ioptions_, &icmp_, db_path_picker_.get()),
         cf_name_("dummy"),
         log_buffer_(InfoLogLevel::INFO_LEVEL, &logger_),
         file_num_(1),
@@ -393,7 +397,7 @@ TEST_F(CompactionPickerTest, LevelTriggerDynamic4) {
 TEST_F(CompactionPickerTest, NeedsCompactionUniversal) {
   NewVersionStorage(1, kCompactionStyleUniversal);
   UniversalCompactionPicker universal_compaction_picker(
-      ioptions_, &icmp_);
+      ioptions_, &icmp_, db_path_picker_.get());
   UpdateVersionStorageInfo();
   // must return false when there's no files.
   ASSERT_EQ(universal_compaction_picker.NeedsCompaction(vstorage_.get()),
@@ -417,7 +421,8 @@ TEST_F(CompactionPickerTest, CompactionUniversalIngestBehindReservedLevel) {
   NewVersionStorage(1, kCompactionStyleUniversal);
   ioptions_.allow_ingest_behind = true;
   ioptions_.num_levels = 3;
-  UniversalCompactionPicker universal_compaction_picker(ioptions_, &icmp_);
+  UniversalCompactionPicker universal_compaction_picker(ioptions_, &icmp_,
+          db_path_picker_.get());
   UpdateVersionStorageInfo();
   // must return false when there's no files.
   ASSERT_EQ(universal_compaction_picker.NeedsCompaction(vstorage_.get()),
@@ -451,7 +456,8 @@ TEST_F(CompactionPickerTest, CannotTrivialMoveUniversal) {
 
   mutable_cf_options_.compaction_options_universal.allow_trivial_move = true;
   NewVersionStorage(1, kCompactionStyleUniversal);
-  UniversalCompactionPicker universal_compaction_picker(ioptions_, &icmp_);
+  UniversalCompactionPicker universal_compaction_picker(ioptions_, &icmp_,
+          db_path_picker_.get());
   UpdateVersionStorageInfo();
   // must return false when there's no files.
   ASSERT_EQ(universal_compaction_picker.NeedsCompaction(vstorage_.get()),
@@ -482,7 +488,8 @@ TEST_F(CompactionPickerTest, AllowsTrivialMoveUniversal) {
   const uint64_t kFileSize = 100000;
 
   mutable_cf_options_.compaction_options_universal.allow_trivial_move = true;
-  UniversalCompactionPicker universal_compaction_picker(ioptions_, &icmp_);
+  UniversalCompactionPicker universal_compaction_picker(ioptions_, &icmp_,
+          db_path_picker_.get());
 
   NewVersionStorage(3, kCompactionStyleUniversal);
 
@@ -510,7 +517,8 @@ TEST_F(CompactionPickerTest, NeedsCompactionFIFO) {
 
   fifo_options_.max_table_files_size = kMaxSize;
   mutable_cf_options_.compaction_options_fifo = fifo_options_;
-  FIFOCompactionPicker fifo_compaction_picker(ioptions_, &icmp_);
+  FIFOCompactionPicker fifo_compaction_picker(ioptions_, &icmp_,
+          db_path_picker_.get());
   UpdateVersionStorageInfo();
   // must return false when there's no files.
   ASSERT_EQ(fifo_compaction_picker.NeedsCompaction(vstorage_.get()), false);

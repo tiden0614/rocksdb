@@ -294,7 +294,8 @@ TEST_F(OptionsSettableTest, DBOptionsAllFieldsSettable) {
                              "two_write_queues=false;"
                              "manual_wal_flush=false;"
                              "seq_per_batch=false;"
-                             "atomic_flush=false",
+                             "atomic_flush=false;"
+                             "db_path_use_strategy=kRespectTargetSize;",
                              new_options));
 
   ASSERT_EQ(unset_bytes_base, NumUnsetBytes(new_options_ptr, sizeof(DBOptions),
@@ -451,6 +452,7 @@ TEST_F(OptionsSettableTest, ColumnFamilyOptionsAllFieldsSettable) {
       "disable_auto_compactions=false;"
       "report_bg_io_stats=true;"
       "ttl=60;"
+      "cf_path_use_strategy=kRespectTargetSize;"
       "sample_for_compression=0;"
       "compaction_options_fifo={max_table_files_size=3;allow_"
       "compaction=false;};",
