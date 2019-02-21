@@ -108,9 +108,8 @@ enum DbPathUseStrategy : unsigned char {
   //
   // Placing newer data to earlier paths is also best-efforts. User should
   // expect user files to be placed in higher levels in some extreme cases.
-  kRespectTargetSize = 0x01,
-  // Distribute files into the list of db paths by randomly choosing a path
-  // in the list.
+  kRespectTargetSize = 0x00,
+  // Randomly distribute files into the list of db paths.
   //
   // For example, you have a few data drives on your host that are mounted
   // as [/sdb1, /sdc1, /sdd1, /sde1]. Say that the database will create 6
@@ -129,7 +128,7 @@ enum DbPathUseStrategy : unsigned char {
   //
   // Note that the target_size attr in DbPath will not be useful if this
   // strategy is chosen.
-  kRandomlyChoosePath = 0x02,
+  kRandomlyChoosePath = 0x01,
 };
 
 struct ColumnFamilyOptions : public AdvancedColumnFamilyOptions {
