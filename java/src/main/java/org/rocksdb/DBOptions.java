@@ -330,6 +330,17 @@ public class DBOptions extends RocksObject
   }
 
   @Override
+  public DBOptions setDbPathUseStrategy(DbPathUseStrategy strategy) {
+    setDbPathUseStrategy(nativeHandle_, strategy.getValue());
+    return this;
+  }
+
+  @Override
+  public DbPathUseStrategy dbPathUseStrategy() {
+    return DbPathUseStrategy.fromValue(dbPathUseStrategy(nativeHandle_));
+  }
+
+  @Override
   public DBOptions setDbLogDir(
       final String dbLogDir) {
     assert(isOwningHandle());
@@ -1163,6 +1174,8 @@ public class DBOptions extends RocksObject
   private native long dbPathsLen(final long handle);
   private native void dbPaths(final long handle, final String[] paths,
                                  final long[] targetSizes);
+  private native void setDbPathUseStrategy(long handle, byte strategy);
+  private native byte dbPathUseStrategy(long handle);
   private native void setDbLogDir(long handle, String dbLogDir);
   private native String dbLogDir(long handle);
   private native void setWalDir(long handle, String walDir);

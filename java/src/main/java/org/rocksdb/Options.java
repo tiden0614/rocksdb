@@ -389,6 +389,65 @@ public class Options extends RocksObject
   }
 
   @Override
+  public Options setDbPathUseStrategy(DbPathUseStrategy strategy) {
+    setDbPathUseStrategy(nativeHandle_, strategy.getValue());
+    return this;
+  }
+
+  @Override
+  public DbPathUseStrategy dbPathUseStrategy() {
+    return DbPathUseStrategy.fromValue(dbPathUseStrategy(nativeHandle_));
+  }
+
+  @Override
+  public Options setCFPaths(final Collection<DbPath> dbPaths) {
+    assert(isOwningHandle());
+
+    final int len = dbPaths.size();
+    final String paths[] = new String[len];
+    final long targetSizes[] = new long[len];
+
+    int i = 0;
+    for(final DbPath dbPath : dbPaths) {
+      paths[i] = dbPath.path.toString();
+      targetSizes[i] = dbPath.targetSize;
+      i++;
+    }
+    setCFPaths(nativeHandle_, paths, targetSizes);
+    return this;
+  }
+
+  @Override
+  public List<DbPath> cfPaths() {
+    final int len = (int)cfPathsLen(nativeHandle_);
+    if(len == 0) {
+      return Collections.emptyList();
+    } else {
+      final String paths[] = new String[len];
+      final long targetSizes[] = new long[len];
+
+      cfPaths(nativeHandle_, paths, targetSizes);
+
+      final List<DbPath> dbPaths = new ArrayList<>();
+      for(int i = 0; i < len; i++) {
+        dbPaths.add(new DbPath(Paths.get(paths[i]), targetSizes[i]));
+      }
+      return dbPaths;
+    }
+  }
+
+  @Override
+  public Options setCFPathUseStrategy(DbPathUseStrategy strategy) {
+    setCFPathUseStrategy(nativeHandle_, strategy.getValue());
+    return this;
+  }
+
+  @Override
+  public DbPathUseStrategy cfPathUseStrategy() {
+    return DbPathUseStrategy.fromValue(cfPathUseStrategy(nativeHandle_));
+  }
+
+  @Override
   public String dbLogDir() {
     assert(isOwningHandle());
     return dbLogDir(nativeHandle_);
@@ -1780,6 +1839,15 @@ public class Options extends RocksObject
   private native long dbPathsLen(final long handle);
   private native void dbPaths(final long handle, final String[] paths,
       final long[] targetSizes);
+  private native void setDbPathUseStrategy(long handle, byte compactionStyle);
+  private native byte dbPathUseStrategy(long handle);
+  private native void setCFPaths(final long handle, final String[] paths,
+      final long[] targetSizes);
+  private native long cfPathsLen(final long handle);
+  private native void cfPaths(final long handle, final String[] paths,
+                                 final long[] targetSizes);
+  private native void setCFPathUseStrategy(long handle, byte compactionStyle);
+  private native byte cfPathUseStrategy(long handle);
   private native void setDbLogDir(long handle, String dbLogDir);
   private native String dbLogDir(long handle);
   private native void setWalDir(long handle, String walDir);

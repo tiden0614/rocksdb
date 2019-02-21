@@ -189,6 +189,19 @@ public class DBOptionsTest {
   }
 
   @Test
+  public void dbPathUseStrategy() {
+    final DbPathUseStrategy strategy = DbPathUseStrategy.RANDOMLY_CHOOSE_PATH;
+
+    try (final DBOptions opt = new DBOptions()) {
+      assertThat(opt.dbPathUseStrategy()).isEqualTo(DbPathUseStrategy.RESPECT_TARGET_SIZE);
+
+      opt.setDbPathUseStrategy(strategy);
+
+      assertThat(opt.dbPathUseStrategy()).isEqualTo(strategy);
+    }
+  }
+
+  @Test
   public void dbLogDir() {
     try(final DBOptions opt = new DBOptions()) {
       final String str = "path/to/DbLogDir";

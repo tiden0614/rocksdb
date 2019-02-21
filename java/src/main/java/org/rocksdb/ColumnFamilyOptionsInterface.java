@@ -5,6 +5,9 @@
 
 package org.rocksdb;
 
+import java.util.Collection;
+import java.util.List;
+
 public interface ColumnFamilyOptionsInterface
     <T extends ColumnFamilyOptionsInterface>
         extends AdvancedColumnFamilyOptionsInterface<T> {
@@ -448,4 +451,54 @@ public interface ColumnFamilyOptionsInterface
    * </ol>
    */
   long DEFAULT_COMPACTION_MEMTABLE_MEMORY_BUDGET = 512 * 1024 * 1024;
+
+  /**
+   * A list of paths where SST files can be put into. These path will be used
+   * differently according to the {@link DbPathUseStrategy} set in the option.
+   *
+   * If left empty, then the database will use the dbPaths specified through
+   * {@link DBOptions}.
+   *
+   * Default: empty
+   *
+   * @param dbPaths the paths and target sizes
+   *
+   * @return the reference to the current options
+   */
+  T setCFPaths(final Collection<DbPath> cfPaths);
+
+  /**
+   * A list of paths where SST files can be put into. These path will be used
+   * differently according to the {@link DbPathUseStrategy} set in the option.
+   *
+   * If left empty, then the database will use the dbPaths specified through
+   * {@link DBOptions}.
+   *
+   * Default: {@link java.util.Collections#emptyList()}
+   *
+   * @return cfPaths the paths and target sizes
+   */
+  List<DbPath> cfPaths();
+
+  /**
+   * The way how rocksdb will use the supplied cfPaths. Refer to the doc
+   * in {@link DbPathUseStrategy} to understand each strategy.
+   *
+   * Default: RESPECT_TARGET_SIZE
+   *
+   * @param strategy the strategy that you choose
+   *
+   * @return the reference to the current options
+   */
+  T setCFPathUseStrategy(DbPathUseStrategy strategy);
+
+  /**
+   * The way how rocksdb will use the supplied cfPaths. Refer to the doc
+   * in {@link DbPathUseStrategy} to understand each strategy.
+   *
+   * Default: RESPECT_TARGET_SIZE
+   *
+   * @return the strategy used by this database
+   */
+  DbPathUseStrategy cfPathUseStrategy();
 }

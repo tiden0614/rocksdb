@@ -276,26 +276,8 @@ public interface DBOptionsInterface<T extends DBOptionsInterface> {
   boolean useFsync();
 
   /**
-   * A list of paths where SST files can be put into, with its target size.
-   * Newer data is placed into paths specified earlier in the vector while
-   * older data gradually moves to paths specified later in the vector.
-   *
-   * For example, you have a flash device with 10GB allocated for the DB,
-   * as well as a hard drive of 2TB, you should config it to be:
-   *    [{"/flash_path", 10GB}, {"/hard_drive", 2TB}]
-   *
-   * The system will try to guarantee data under each path is close to but
-   * not larger than the target size. But current and future file sizes used
-   * by determining where to place a file are based on best-effort estimation,
-   * which means there is a chance that the actual size under the directory
-   * is slightly more than target size under some workloads. User should give
-   * some buffer room for those cases.
-   *
-   * If none of the paths has sufficient room to place a file, the file will
-   * be placed to the last path anyway, despite to the target size.
-   *
-   * Placing newer data to earlier paths is also best-efforts. User should
-   * expect user files to be placed in higher levels in some extreme cases.
+   * A list of paths where SST files can be put into. These path will be used
+   * differently according to the {@link DbPathUseStrategy} set in the option.
    *
    * If left empty, only one path will be used, which is db_name passed when
    * opening the DB.
@@ -309,26 +291,8 @@ public interface DBOptionsInterface<T extends DBOptionsInterface> {
   T setDbPaths(final Collection<DbPath> dbPaths);
 
   /**
-   * A list of paths where SST files can be put into, with its target size.
-   * Newer data is placed into paths specified earlier in the vector while
-   * older data gradually moves to paths specified later in the vector.
-   *
-   * For example, you have a flash device with 10GB allocated for the DB,
-   * as well as a hard drive of 2TB, you should config it to be:
-   *    [{"/flash_path", 10GB}, {"/hard_drive", 2TB}]
-   *
-   * The system will try to guarantee data under each path is close to but
-   * not larger than the target size. But current and future file sizes used
-   * by determining where to place a file are based on best-effort estimation,
-   * which means there is a chance that the actual size under the directory
-   * is slightly more than target size under some workloads. User should give
-   * some buffer room for those cases.
-   *
-   * If none of the paths has sufficient room to place a file, the file will
-   * be placed to the last path anyway, despite to the target size.
-   *
-   * Placing newer data to earlier paths is also best-efforts. User should
-   * expect user files to be placed in higher levels in some extreme cases.
+   * A list of paths where SST files can be put into. These path will be used
+   * differently according to the {@link DbPathUseStrategy} set in the option.
    *
    * If left empty, only one path will be used, which is db_name passed when
    * opening the DB.
@@ -338,6 +302,28 @@ public interface DBOptionsInterface<T extends DBOptionsInterface> {
    * @return dbPaths the paths and target sizes
    */
   List<DbPath> dbPaths();
+
+  /**
+   * The way how rocksdb will use the supplied dbPaths. Refer to the doc
+   * in {@link DbPathUseStrategy} to understand each strategy.
+   *
+   * Default: RESPECT_TARGET_SIZE
+   *
+   * @param strategy the strategy that you choose
+   *
+   * @return the reference to the current options
+   */
+  T setDbPathUseStrategy(DbPathUseStrategy strategy);
+
+  /**
+   * The way how rocksdb will use the supplied dbPaths. Refer to the doc
+   * in {@link DbPathUseStrategy} to understand each strategy.
+   *
+   * Default: RESPECT_TARGET_SIZE
+   *
+   * @return the strategy used by this database
+   */
+  DbPathUseStrategy dbPathUseStrategy();
 
   /**
    * This specifies the info LOG dir.

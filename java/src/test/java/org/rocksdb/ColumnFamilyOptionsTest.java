@@ -9,10 +9,8 @@ import org.junit.ClassRule;
 import org.junit.Test;
 import org.rocksdb.test.RemoveEmptyValueCompactionFilterFactory;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Properties;
-import java.util.Random;
+import java.nio.file.Paths;
+import java.util.*;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -622,4 +620,32 @@ public class ColumnFamilyOptionsTest {
     }
   }
 
+  @Test
+  public void cfPaths() {
+    final List<DbPath> cfPaths = new ArrayList<>();
+    cfPaths.add(new DbPath(Paths.get("/a"), 10));
+    cfPaths.add(new DbPath(Paths.get("/b"), 100));
+    cfPaths.add(new DbPath(Paths.get("/c"), 1000));
+
+    try(final ColumnFamilyOptions opt = new ColumnFamilyOptions()) {
+      assertThat(opt.cfPaths()).isEqualTo(Collections.emptyList());
+
+      opt.setCFPaths(cfPaths);
+
+      assertThat(opt.cfPaths()).isEqualTo(cfPaths);
+    }
+  }
+
+  @Test
+  public void cfPathUseStrategy() {
+    final DbPathUseStrategy strategy = DbPathUseStrategy.RANDOMLY_CHOOSE_PATH;
+
+    try (final ColumnFamilyOptions opt = new ColumnFamilyOptions()) {
+      assertThat(opt.cfPathUseStrategy()).isEqualTo(DbPathUseStrategy.RESPECT_TARGET_SIZE);
+
+      opt.setCFPathUseStrategy(strategy);
+
+      assertThat(opt.cfPathUseStrategy()).isEqualTo(strategy);
+    }
+  }
 }

@@ -401,6 +401,48 @@ public class OptionsTest {
   }
 
   @Test
+  public void dbPathUseStrategy() {
+    final DbPathUseStrategy strategy = DbPathUseStrategy.RANDOMLY_CHOOSE_PATH;
+
+    try (final Options opt = new Options()) {
+      assertThat(opt.dbPathUseStrategy()).isEqualTo(DbPathUseStrategy.RESPECT_TARGET_SIZE);
+
+      opt.setDbPathUseStrategy(strategy);
+
+      assertThat(opt.dbPathUseStrategy()).isEqualTo(strategy);
+    }
+  }
+
+  @Test
+  public void cfPaths() {
+    final List<DbPath> cfPaths = new ArrayList<>();
+    cfPaths.add(new DbPath(Paths.get("/a"), 10));
+    cfPaths.add(new DbPath(Paths.get("/b"), 100));
+    cfPaths.add(new DbPath(Paths.get("/c"), 1000));
+
+    try(final Options opt = new Options()) {
+      assertThat(opt.cfPaths()).isEqualTo(Collections.emptyList());
+
+      opt.setCFPaths(cfPaths);
+
+      assertThat(opt.cfPaths()).isEqualTo(cfPaths);
+    }
+  }
+
+  @Test
+  public void cfPathUseStrategy() {
+    final DbPathUseStrategy strategy = DbPathUseStrategy.RANDOMLY_CHOOSE_PATH;
+
+    try (final Options opt = new Options()) {
+      assertThat(opt.cfPathUseStrategy()).isEqualTo(DbPathUseStrategy.RESPECT_TARGET_SIZE);
+
+      opt.setCFPathUseStrategy(strategy);
+
+      assertThat(opt.cfPathUseStrategy()).isEqualTo(strategy);
+    }
+  }
+
+  @Test
   public void dbLogDir() {
     try (final Options opt = new Options()) {
       final String str = "path/to/DbLogDir";
