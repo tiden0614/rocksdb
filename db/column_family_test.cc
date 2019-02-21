@@ -3310,6 +3310,139 @@ TEST_P(ColumnFamilyTest, MultipleCFPathsTest) {
   }
 }
 
+TEST_P(ColumnFamilyTest, FlushToRandomCFPathsTest) {
+  Open();
+  // specify a few cf_paths and tell the column family
+  // to use the random cf path strategy. verify that
+  // memtables are flushed into different paths.
+  int num_paths = 3;
+  int num_flushes = 30;
+
+  ColumnFamilyOptions cf_opt;
+  for (int icf_path = 0; icf_path < num_paths; icf_path++) {
+    cf_opt.cf_paths.emplace_back(dbname_ + "_" + std::to_string(icf_path),
+                                 std::numeric_limits<uint64_t >::max());
+  }
+  cf_opt.cf_path_use_strategy = kRandomlyChoosePath;
+  cf_opt.disable_auto_compactions = true;
+  cf_opt.level0_slowdown_writes_trigger = 100;
+
+  CreateColumnFamilies({"cf"}, {cf_opt});
+  Reopen({ColumnFamilyOptions(), cf_opt});
+
+  for (int iflush = 0; iflush < num_flushes; iflush++) {
+    PutRandomData(1, 10, 100);
+    Flush(1);
+  }
+
+  int total_files = 0;
+  for (int icf_path = 0; icf_path < num_paths; icf_path++) {
+    auto p = cf_opt.cf_paths[icf_path].path;
+    int num_sst_files = GetSstFileCount(p);
+    ASSERT_TRUE(num_sst_files > 0);
+    total_files += num_sst_files;
+  }
+
+  ASSERT_EQ(num_flushes, total_files);
+}
+
+TEST_P(ColumnFamilyTest, FlushToRandomCFPathsReadableTest) {
+  Open();
+  // write data to a few different cf paths. close the
+  // cf(db) and reopen it. verify that all the data is
+  // still there.
+  int num_paths = 3;
+  int num_records = 5371;
+  int target_batch_size = 1000;
+  std::string record_val("zhadaryl-test-value");
+
+  ColumnFamilyOptions cf_opt;
+  for (int icf_path = 0; icf_path < num_paths; icf_path++) {
+    cf_opt.cf_paths.emplace_back(dbname_ + "_" + std::to_string(icf_path),
+                                 std::numeric_limits<uint64_t >::max());
+  }
+  cf_opt.cf_path_use_strategy = kRandomlyChoosePath;
+  cf_opt.disable_auto_compactions = true;
+  cf_opt.level0_slowdown_writes_trigger = 100;
+
+  CreateColumnFamilies({"cf"}, {cf_opt});
+  Reopen({ColumnFamilyOptions(), cf_opt});
+
+  int batch_size = 0;
+  for (int irecord = 0; irecord < num_records; irecord++) {
+    Put(1, std::to_string(irecord), record_val);
+    batch_size += 1;
+    if (batch_size >= target_batch_size) {
+      Flush(1);
+      batch_size = 0;
+    }
+  }
+  Flush(1);
+
+  // close and reopen
+  Close();
+  Open({"default", "cf"}, {ColumnFamilyOptions(), cf_opt});
+
+  // verify that we have all the data
+  for (int irecord = 0; irecord < num_records; irecord++) {
+    auto val = Get(1, std::to_string(irecord));
+    ASSERT_EQ(record_val, val);
+  }
+}
+
+TEST_P(ColumnFamilyTest, CompactToRandomCFPathsTest) {
+  Open();
+  // write some data and wait for a few compactions.
+  // verify that compactions can choose random paths.
+  int num_paths = 3;
+  int target_batch_size = 500;
+  std::string record_val("zhadaryl-test-valueab"); // each batch is around
+                                                   // 1KB in size
+  int num_records = 5000; // this results in 10 batches
+  int num_files = num_records / target_batch_size;
+
+  ColumnFamilyOptions cf_opt;
+  for (int icf_path = 0; icf_path < num_paths; icf_path++) {
+    cf_opt.cf_paths.emplace_back(dbname_ + "_" + std::to_string(icf_path),
+                                 std::numeric_limits<uint64_t >::max());
+  }
+  cf_opt.cf_path_use_strategy = kRandomlyChoosePath;
+  cf_opt.compaction_style = kCompactionStyleLevel;
+  cf_opt.level0_slowdown_writes_trigger = 100;
+  cf_opt.target_file_size_base = 1024; // make the target file size 1KB
+  cf_opt.target_file_size_multiplier = 1; // each level has the same file size
+
+  CreateColumnFamilies({"cf"}, {cf_opt});
+  Reopen({ColumnFamilyOptions(), cf_opt});
+
+  // randomly put records 0~num_records so that L0 files
+  // contain overlapping records
+  int batch_size = 0;
+  for (int irecord = 0; irecord < num_records; irecord++) {
+    Put(1, std::to_string(irecord), record_val);
+    batch_size += 1;
+    if (batch_size >= target_batch_size) {
+      Flush(1);
+      batch_size = 0;
+    }
+  }
+  Flush(1);
+
+  // wait for compaction to finish
+  WaitForCompaction();
+
+  // now we should have 10 compacted files. they should
+  // scatter in all paths we have specified
+
+  int total_files = 0;
+  for (int icf_path = 0; icf_path < num_paths; icf_path++) {
+    auto p = cf_opt.cf_paths[icf_path].path;
+    int num_sst_files = GetSstFileCount(p);
+    ASSERT_TRUE(num_sst_files > 0);
+    total_files += num_sst_files;
+  }
+}
+
 }  // namespace rocksdb
 
 int main(int argc, char** argv) {
