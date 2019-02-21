@@ -306,7 +306,7 @@ CompactionJob::CompactionJob(
     const EnvOptions env_options, VersionSet* versions,
     const std::atomic<bool>* shutting_down,
     const SequenceNumber preserve_deletes_seqnum, LogBuffer* log_buffer,
-    Directory* db_directory, Directory* output_directory, Statistics* stats,
+    DataDirSupplier* data_dir_supplier, Statistics* stats,
     InstrumentedMutex* db_mutex, ErrorHandler* db_error_handler,
     std::vector<SequenceNumber> existing_snapshots,
     SequenceNumber earliest_write_conflict_snapshot,
@@ -328,8 +328,6 @@ CompactionJob::CompactionJob(
       shutting_down_(shutting_down),
       preserve_deletes_seqnum_(preserve_deletes_seqnum),
       log_buffer_(log_buffer),
-      db_directory_(db_directory),
-      output_directory_(output_directory),
       stats_(stats),
       db_mutex_(db_mutex),
       db_error_handler_(db_error_handler),
@@ -342,7 +340,8 @@ CompactionJob::CompactionJob(
       paranoid_file_checks_(paranoid_file_checks),
       measure_io_stats_(measure_io_stats),
       write_hint_(Env::WLTH_NOT_SET),
-      thread_pri_(thread_pri) {
+      thread_pri_(thread_pri),
+      data_dir_supplier_(data_dir_supplier) {
   assert(log_buffer_ != nullptr);
   const auto* cfd = compact_->compaction->column_family_data();
   ThreadStatusUtil::SetColumnFamily(cfd, cfd->ioptions()->env,
@@ -573,6 +572,40 @@ void CompactionJob::GenSubcompactionBoundaries() {
   }
 }
 
+Status CompactionJob::FsyncOutputDirectories() {
+  std::unordered_set<uint32_t> output_path_ids;
+
+  for (size_t i = 0; i < compact_->sub_compact_states.size(); ++i) {
+    for (auto &output: compact_->sub_compact_states[i].outputs) {
+      output_path_ids.insert(output.meta.fd.GetPathId());
+    }
+  }
+
+  Status s;
+
+  if (data_dir_supplier_ == nullptr) {
+    return s;
+  }
+
+  for (uint32_t path_id : output_path_ids) {
+    Directory* dir = data_dir_supplier_->
+            GetDataDir(compact_->compaction->column_family_data(), path_id);
+
+    if (dir == nullptr) {
+      continue;
+    }
+
+    // if fsync fails for whatever reason, keep doing the rest and
+    // report the failure when returning
+    Status s1 = dir->Fsync();
+    if (!s1.ok()) {
+      s = s1;
+    }
+  }
+
+  return s;
+}
+
 Status CompactionJob::Run() {
   AutoThreadOperationStageUpdater stage_updater(
       ThreadStatus::STAGE_COMPACTION_RUN);
@@ -623,8 +656,8 @@ Status CompactionJob::Run() {
     }
   }
 
-  if (status.ok() && output_directory_) {
-    status = output_directory_->Fsync();
+  if (status.ok()) {
+    status = FsyncOutputDirectories();
   }
 
   if (status.ok()) {
@@ -1405,7 +1438,7 @@ Status CompactionJob::InstallCompactionResults(
   }
   return versions_->LogAndApply(compaction->column_family_data(),
                                 mutable_cf_options, compaction->edit(),
-                                db_mutex_, db_directory_);
+                                db_mutex_, data_dir_supplier_->GetDbDir());
 }
 
 void CompactionJob::RecordCompactionIOStats() {
@@ -1425,9 +1458,10 @@ Status CompactionJob::OpenCompactionOutputFile(
   assert(sub_compact->builder == nullptr);
   // no need to lock because VersionSet::next_file_number_ is atomic
   uint64_t file_number = versions_->NewFileNumber();
+  uint32_t output_path_id = sub_compact->compaction->output_path_id();
   std::string fname =
       TableFileName(sub_compact->compaction->immutable_cf_options()->cf_paths,
-                    file_number, sub_compact->compaction->output_path_id());
+                    file_number, output_path_id);
   // Fire events.
   ColumnFamilyData* cfd = sub_compact->compaction->column_family_data();
 #ifndef ROCKSDB_LITE
@@ -1460,7 +1494,7 @@ Status CompactionJob::OpenCompactionOutputFile(
 
   SubcompactionState::Output out;
   out.meta.fd =
-      FileDescriptor(file_number, sub_compact->compaction->output_path_id(), 0);
+      FileDescriptor(file_number, output_path_id, 0);
   out.finished = false;
 
   sub_compact->outputs.push_back(out);

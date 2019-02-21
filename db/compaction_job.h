@@ -54,6 +54,7 @@ class TableCache;
 class Version;
 class VersionEdit;
 class VersionSet;
+class DataDirSupplier;
 
 class CompactionJob {
  public:
@@ -62,9 +63,10 @@ class CompactionJob {
                 const EnvOptions env_options, VersionSet* versions,
                 const std::atomic<bool>* shutting_down,
                 const SequenceNumber preserve_deletes_seqnum,
-                LogBuffer* log_buffer, Directory* db_directory,
-                Directory* output_directory, Statistics* stats,
-                InstrumentedMutex* db_mutex, ErrorHandler* db_error_handler,
+                LogBuffer* log_buffer,
+                DataDirSupplier* data_dir_supplier,
+                Statistics* stats, InstrumentedMutex* db_mutex,
+                ErrorHandler* db_error_handler,
                 std::vector<SequenceNumber> existing_snapshots,
                 SequenceNumber earliest_write_conflict_snapshot,
                 const SnapshotChecker* snapshot_checker,
@@ -122,6 +124,8 @@ class CompactionJob {
 
   void LogCompaction();
 
+  Status FsyncOutputDirectories();
+
   int job_id_;
 
   // CompactionJob state
@@ -142,8 +146,6 @@ class CompactionJob {
   const std::atomic<bool>* shutting_down_;
   const SequenceNumber preserve_deletes_seqnum_;
   LogBuffer* log_buffer_;
-  Directory* db_directory_;
-  Directory* output_directory_;
   Statistics* stats_;
   InstrumentedMutex* db_mutex_;
   ErrorHandler* db_error_handler_;
@@ -173,6 +175,7 @@ class CompactionJob {
   std::vector<uint64_t> sizes_;
   Env::WriteLifeTimeHint write_hint_;
   Env::Priority thread_pri_;
+  DataDirSupplier* data_dir_supplier_;
 };
 
 }  // namespace rocksdb

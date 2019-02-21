@@ -889,16 +889,6 @@ Status DBImpl::CompactFilesImpl(
   // following functions call is pluggable to external developers.
   version->GetColumnFamilyMetaData(&cf_meta);
 
-  if (output_path_id < 0) {
-    if (cfd->ioptions()->cf_paths.size() == 1U) {
-      output_path_id = cfd->PickPathID(output_level);
-    } else {
-      return Status::NotSupported(
-          "Automatic output path selection is not "
-          "yet supported in CompactFiles()");
-    }
-  }
-
   Status s = cfd->compaction_picker()->SanitizeCompactionInputFiles(
       &input_set, cf_meta, output_level);
   if (!s.ok()) {
@@ -960,8 +950,8 @@ Status DBImpl::CompactFilesImpl(
   CompactionJob compaction_job(
       job_context->job_id, c.get(), immutable_db_options_,
       env_options_for_compaction_, versions_.get(), &shutting_down_,
-      preserve_deletes_seqnum_.load(), log_buffer, directories_.GetDbDir(),
-      GetDataDir(c->column_family_data(), c->output_path_id()), stats_, &mutex_,
+      preserve_deletes_seqnum_.load(), log_buffer,
+      GetDataDirSupplier(), stats_, &mutex_,
       &error_handler_, snapshot_seqs, earliest_write_conflict_snapshot,
       snapshot_checker, table_cache_, &event_logger_,
       c->mutable_cf_options()->paranoid_file_checks,
@@ -1421,9 +1411,9 @@ Status DBImpl::RunManualCompaction(ColumnFamilyData* cfd, int input_level,
         (((manual.manual_end = &manual.tmp_storage1) != nullptr) &&
          ((compaction = manual.cfd->CompactRange(
                *manual.cfd->GetLatestMutableCFOptions(), manual.input_level,
-               manual.output_level, manual.output_path_id, max_subcompactions,
+               manual.output_level, max_subcompactions,
                manual.begin, manual.end, &manual.manual_end,
-               &manual_conflict)) == nullptr &&
+               &manual_conflict, manual.output_path_id)) == nullptr &&
           manual_conflict))) {
       // exclusive manual compactions should not see a conflict during
       // CompactRange
@@ -2612,11 +2602,10 @@ Status DBImpl::BackgroundCompaction(bool* made_progress,
     CompactionJob compaction_job(
         job_context->job_id, c.get(), immutable_db_options_,
         env_options_for_compaction_, versions_.get(), &shutting_down_,
-        preserve_deletes_seqnum_.load(), log_buffer, directories_.GetDbDir(),
-        GetDataDir(c->column_family_data(), c->output_path_id()), stats_,
-        &mutex_, &error_handler_, snapshot_seqs,
-        earliest_write_conflict_snapshot, snapshot_checker, table_cache_,
-        &event_logger_, c->mutable_cf_options()->paranoid_file_checks,
+        preserve_deletes_seqnum_.load(), log_buffer, GetDataDirSupplier(), stats_,
+        &mutex_, &error_handler_, snapshot_seqs, earliest_write_conflict_snapshot,
+        snapshot_checker, table_cache_, &event_logger_,
+        c->mutable_cf_options()->paranoid_file_checks,
         c->mutable_cf_options()->report_bg_io_stats, dbname_,
         &compaction_job_stats, thread_pri);
     compaction_job.Prepare();

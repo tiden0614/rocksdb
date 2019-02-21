@@ -99,9 +99,10 @@ Compaction* FIFOCompactionPicker::PickTTLCompaction(
   }
 
   Compaction* c = new Compaction(
-      vstorage, ioptions_, mutable_cf_options, std::move(inputs), 0, 0, 0, 0,
+      vstorage, ioptions_, mutable_cf_options, std::move(inputs), 0, 0, 0,
       kNoCompression, ioptions_.compression_opts, /* max_subcompactions */ 0,
-      {}, /* is manual */ false, vstorage->CompactionScore(0),
+      {}, /* output_path_id */ 0, db_path_picker_, /* is manual */ false,
+      vstorage->CompactionScore(0),
       /* is deletion compaction */ true, CompactionReason::kFIFOTtl);
   return c;
 }
@@ -139,8 +140,9 @@ Compaction* FIFOCompactionPicker::PickSizeCompaction(
             vstorage, ioptions_, mutable_cf_options, {comp_inputs}, 0,
             16 * 1024 * 1024 /* output file size limit */,
             0 /* max compaction bytes, not applicable */,
-            0 /* output path ID */, mutable_cf_options.compression,
+            mutable_cf_options.compression,
             ioptions_.compression_opts, 0 /* max_subcompactions */, {},
+            /* output_path_id */ 0, db_path_picker_,
             /* is manual */ false, vstorage->CompactionScore(0),
             /* is deletion compaction */ false,
             CompactionReason::kFIFOReduceNumFiles);
@@ -187,9 +189,10 @@ Compaction* FIFOCompactionPicker::PickSizeCompaction(
   }
 
   Compaction* c = new Compaction(
-      vstorage, ioptions_, mutable_cf_options, std::move(inputs), 0, 0, 0, 0,
+      vstorage, ioptions_, mutable_cf_options, std::move(inputs), 0, 0, 0,
       kNoCompression, ioptions_.compression_opts, /* max_subcompactions */ 0,
-      {}, /* is manual */ false, vstorage->CompactionScore(0),
+      {}, /* output_path_id */ 0, db_path_picker_,
+      /* is manual */ false, vstorage->CompactionScore(0),
       /* is deletion compaction */ true, CompactionReason::kFIFOMaxSize);
   return c;
 }
@@ -213,9 +216,10 @@ Compaction* FIFOCompactionPicker::PickCompaction(
 Compaction* FIFOCompactionPicker::CompactRange(
     const std::string& cf_name, const MutableCFOptions& mutable_cf_options,
     VersionStorageInfo* vstorage, int input_level, int output_level,
-    uint32_t /*output_path_id*/, uint32_t /*max_subcompactions*/,
+    uint32_t /*max_subcompactions*/,
     const InternalKey* /*begin*/, const InternalKey* /*end*/,
-    InternalKey** compaction_end, bool* /*manual_conflict*/) {
+    InternalKey** compaction_end, bool* /*manual_conflict*/,
+    int32_t /* output_path_id */) {
 #ifdef NDEBUG
   (void)input_level;
   (void)output_level;

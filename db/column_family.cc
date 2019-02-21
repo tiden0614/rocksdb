@@ -18,6 +18,7 @@
 #include <string>
 #include <algorithm>
 #include <limits>
+#include <chrono>
 
 #include "db/compaction_picker.h"
 #include "db/compaction_picker_fifo.h"
@@ -158,24 +159,37 @@ Status CheckConcurrentWritesSupported(const ColumnFamilyOptions& cf_options) {
 
 Status CheckCFPathsSupported(const DBOptions& db_options,
                              const ColumnFamilyOptions& cf_options) {
-  // More than one cf_paths are supported only in universal
-  // and level compaction styles. This function also checks the case
-  // in which cf_paths is not specified, which results in db_paths
-  // being used.
-  if ((cf_options.compaction_style != kCompactionStyleUniversal) &&
-      (cf_options.compaction_style != kCompactionStyleLevel)) {
-    if (cf_options.cf_paths.size() > 1) {
-      return Status::NotSupported(
-          "More than one CF paths are only supported in "
-          "universal and level compaction styles. ");
-    } else if (cf_options.cf_paths.empty() &&
-               db_options.db_paths.size() > 1) {
-      return Status::NotSupported(
-          "More than one DB paths are only supported in "
-          "universal and level compaction styles. ");
+  switch (cf_options.cf_path_use_strategy) {
+  case kRespectTargetSize: {
+    // More than one cf_paths are supported only in universal
+    // and level compaction styles. This function also checks the case
+    // in which cf_paths is not specified, which results in db_paths
+    // being used.
+    if ((cf_options.compaction_style != kCompactionStyleUniversal) &&
+        (cf_options.compaction_style != kCompactionStyleLevel)) {
+      if (cf_options.cf_paths.size() > 1) {
+        return Status::NotSupported(
+                "More than one CF paths are only supported in "
+                "universal and level compaction styles. ");
+      } else if (cf_options.cf_paths.empty() &&
+                 db_options.db_paths.size() > 1) {
+        return Status::NotSupported(
+                "More than one DB paths are only supported in "
+                "universal and level compaction styles. ");
+      }
     }
+
+    return Status::OK();
   }
-  return Status::OK();
+
+  case kRandomlyChoosePath: {
+    return Status::OK();
+  }
+
+  }
+
+  return Status::NotSupported("We don't support this strategy yet: " +
+                              std::to_string(cf_options.cf_path_use_strategy));
 }
 
 ColumnFamilyOptions SanitizeOptions(const ImmutableDBOptions& db_options,
@@ -310,6 +324,8 @@ ColumnFamilyOptions SanitizeOptions(const ImmutableDBOptions& db_options,
   if (result.cf_paths.empty()) {
     result.cf_paths = db_options.db_paths;
   }
+
+  result.cf_path_use_strategy = src.cf_path_use_strategy;
 
   if (result.level_compaction_dynamic_level_bytes) {
     if (result.compaction_style != kCompactionStyleLevel ||
@@ -1003,13 +1019,13 @@ const int ColumnFamilyData::kCompactToBaseLevel = -2;
 
 Compaction* ColumnFamilyData::CompactRange(
     const MutableCFOptions& mutable_cf_options, int input_level,
-    int output_level, uint32_t output_path_id, uint32_t max_subcompactions,
+    int output_level, uint32_t max_subcompactions,
     const InternalKey* begin, const InternalKey* end,
-    InternalKey** compaction_end, bool* conflict) {
+    InternalKey** compaction_end, bool* conflict, int32_t output_path_id) {
   auto* result = compaction_picker_->CompactRange(
       GetName(), mutable_cf_options, current_->storage_info(), input_level,
-      output_level, output_path_id, max_subcompactions, begin, end,
-      compaction_end, conflict);
+      output_level, max_subcompactions, begin, end,
+      compaction_end, conflict, output_path_id);
   if (result != nullptr) {
     result->SetInputVersion(current_);
   }
@@ -1400,8 +1416,10 @@ uint32_t RandomDPP::PickPathID(int level, uint64_t file_size) {
 
   auto size32 = static_cast<uint32_t>(size_);
 
-  // TODO use a time based seed
-  Random rand(0);
+  auto now = std::chrono::high_resolution_clock::now();
+  long count = now.time_since_epoch().count();
+
+  Random rand(count);
   return rand.Next() % size32;
 }
 

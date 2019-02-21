@@ -71,9 +71,10 @@ class Compaction {
              const MutableCFOptions& mutable_cf_options,
              std::vector<CompactionInputFiles> inputs, int output_level,
              uint64_t target_file_size, uint64_t max_compaction_bytes,
-             uint32_t output_path_id, CompressionType compression,
+             CompressionType compression,
              CompressionOptions compression_opts, uint32_t max_subcompactions,
              std::vector<FileMetaData*> grandparents,
+             int32_t output_path_id = -1, DbPathPicker* db_path_picker = nullptr,
              bool manual_compaction = false, double score = -1,
              bool deletion_compaction = false,
              CompactionReason compaction_reason = CompactionReason::kUnknown);
@@ -162,8 +163,27 @@ class Compaction {
     return output_compression_opts_;
   }
 
-  // Whether need to write output file to second DB path.
-  uint32_t output_path_id() const { return output_path_id_; }
+  // What path id to use for a new output file. Note that
+  // a compaction can output more than one files. If the
+  // original output_path_id was set to -1 and the
+  // db_path_picker was set, then the compaction will use
+  // the path picker to choose a path id for each new
+  // output file.
+  uint32_t output_path_id() const {
+    if (output_path_id_ >= 0) {
+      return static_cast<uint32_t >(output_path_id_);
+    }
+
+    // output_path_id_ < 0 means that we can dynamically
+    // pick a path... if the path id picker is set
+    if (db_path_picker_ != nullptr) {
+      db_path_picker_->PickPathID(output_level_);
+    }
+
+    // no path id picker was set.. then the only safe option
+    // is path 0
+    return 0;
+  }
 
   // Is this a trivial compaction that can be implemented by just
   // moving a single input file to the next level (no merging or splitting)
@@ -331,7 +351,8 @@ class Compaction {
   ColumnFamilyData* cfd_;
   Arena arena_;          // Arena used to allocate space for file_levels_
 
-  const uint32_t output_path_id_;
+  const int32_t output_path_id_;
+  DbPathPicker* db_path_picker_;
   CompressionType output_compression_;
   CompressionOptions output_compression_opts_;
   // If true, then the comaction can be done by simply deleting input files.
@@ -359,6 +380,10 @@ class Compaction {
   // True if we can do trivial move in Universal multi level
   // compaction
   bool is_trivial_move_;
+
+  // Is this move a trivial move for different levels but in
+  // the same path?
+  bool IsTrivialDiffLevelSamePathMove() const;
 
   // Does input compression match the output compression?
   bool InputCompressionMatchesOutput() const;

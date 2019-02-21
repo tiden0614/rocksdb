@@ -14,6 +14,7 @@
 #include "db/compaction_job.h"
 #include "db/error_handler.h"
 #include "db/version_set.h"
+#include "db/db_impl.h"
 #include "rocksdb/cache.h"
 #include "rocksdb/db.h"
 #include "rocksdb/options.h"
@@ -248,8 +249,9 @@ class CompactionJobTest : public testing::Test {
     Compaction compaction(cfd->current()->storage_info(), *cfd->ioptions(),
                           *cfd->GetLatestMutableCFOptions(),
                           compaction_input_files, 1, 1024 * 1024,
-                          10 * 1024 * 1024, 0, kNoCompression,
-                          cfd->ioptions()->compression_opts, 0, {}, true);
+                          10 * 1024 * 1024, kNoCompression,
+                          cfd->ioptions()->compression_opts, 0, {}, 0,
+                          nullptr, true);
     compaction.SetInputVersion(cfd->current());
 
     LogBuffer log_buffer(InfoLogLevel::INFO_LEVEL, db_options_.info_log.get());
@@ -259,7 +261,7 @@ class CompactionJobTest : public testing::Test {
     SnapshotChecker* snapshot_checker = nullptr;
     CompactionJob compaction_job(
         0, &compaction, db_options_, env_options_, versions_.get(),
-        &shutting_down_, preserve_deletes_seqnum_, &log_buffer, nullptr,
+        &shutting_down_, preserve_deletes_seqnum_, &log_buffer,
         nullptr, nullptr, &mutex_, &error_handler_, snapshots,
         earliest_write_conflict_snapshot, snapshot_checker, table_cache_,
         &event_logger, false, false, dbname_, &compaction_job_stats_,

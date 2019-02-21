@@ -75,6 +75,8 @@ struct JobContext;
 struct ExternalSstFileInfo;
 struct MemTableInfo;
 
+class DataDirSupplier;
+
 class DBImpl : public DB {
  public:
   DBImpl(const DBOptions& options, const std::string& dbname,
@@ -864,6 +866,10 @@ class DBImpl : public DB {
   // Actual implementation of Close()
   Status CloseImpl();
 
+  DataDirSupplier* GetDataDirSupplier() {
+    return data_dir_supplier_.get();
+  }
+
   // Recover the descriptor from persistent storage.  May do a significant
   // amount of work to recover recently logged updates.  Any changes to
   // be made to the descriptor are added to *edit.
@@ -884,6 +890,7 @@ class DBImpl : public DB {
   friend class WriteBatchWithIndex;
   friend class WriteUnpreparedTxnDB;
   friend class WriteUnpreparedTxn;
+  friend class DataDirSupplier;
 
 #ifndef ROCKSDB_LITE
   friend class ForwardIterator;
@@ -1715,6 +1722,28 @@ class DBImpl : public DB {
   // results sequentially. Flush results of memtables with lower IDs get
   // installed to MANIFEST first.
   InstrumentedCondVar atomic_flush_install_cv_;
+
+  std::unique_ptr<DataDirSupplier> data_dir_supplier_;
+};
+
+class DataDirSupplier {
+ public:
+  virtual Directory* GetDataDir(ColumnFamilyData* cfd, uint32_t path_id) const {
+    return db_->GetDataDir(cfd, path_id);
+  }
+
+  virtual Directory* GetDbDir() const {
+    return db_->directories_.GetDbDir();
+  }
+
+  virtual ~DataDirSupplier() {}
+
+ protected:
+  DataDirSupplier(DBImpl* db) : db_(db) {}
+
+ private:
+  friend class DBImpl;
+  DBImpl* db_;
 };
 
 extern Options SanitizeOptions(const std::string& db, const Options& src);

@@ -312,7 +312,7 @@ Compaction* CompactionPicker::CompactFiles(
     const CompactionOptions& compact_options,
     const std::vector<CompactionInputFiles>& input_files, int output_level,
     VersionStorageInfo* vstorage, const MutableCFOptions& mutable_cf_options,
-    uint32_t output_path_id) {
+    int32_t output_path_id) {
   assert(input_files.size());
   // This compaction output should not overlap with a running compaction as
   // `SanitizeCompactionInputFiles` should've checked earlier and db mutex
@@ -338,10 +338,13 @@ Compaction* CompactionPicker::CompactFiles(
   auto c = new Compaction(
       vstorage, ioptions_, mutable_cf_options, input_files, output_level,
       compact_options.output_file_size_limit,
-      mutable_cf_options.max_compaction_bytes, output_path_id, compression_type,
+      mutable_cf_options.max_compaction_bytes, compression_type,
       GetCompressionOptions(ioptions_, vstorage, output_level),
       compact_options.max_subcompactions,
-      /* grandparents */ {}, true);
+      /* grandparents */ {},
+      output_path_id,
+      db_path_picker_,
+      true);
   RegisterCompaction(c);
   return c;
 }
@@ -544,9 +547,10 @@ void CompactionPicker::GetGrandparents(
 Compaction* CompactionPicker::CompactRange(
     const std::string& cf_name, const MutableCFOptions& mutable_cf_options,
     VersionStorageInfo* vstorage, int input_level, int output_level,
-    uint32_t output_path_id, uint32_t max_subcompactions,
+    uint32_t max_subcompactions,
     const InternalKey* begin, const InternalKey* end,
-    InternalKey** compaction_end, bool* manual_conflict) {
+    InternalKey** compaction_end, bool* manual_conflict,
+    int32_t output_path_id) {
   // CompactionPickerFIFO has its own implementation of compact range
   assert(ioptions_.compaction_style != kCompactionStyleFIFO);
 
@@ -610,11 +614,12 @@ Compaction* CompactionPicker::CompactRange(
         output_level,
         MaxFileSizeForLevel(mutable_cf_options, output_level,
                             ioptions_.compaction_style),
-        /* max_compaction_bytes */ LLONG_MAX, output_path_id,
+        /* max_compaction_bytes */ LLONG_MAX,
         GetCompressionType(ioptions_, vstorage, mutable_cf_options,
                            output_level, 1),
         GetCompressionOptions(ioptions_, vstorage, output_level),
-        max_subcompactions, /* grandparents */ {}, /* is manual */ true);
+        max_subcompactions, /* grandparents */ {},
+        output_path_id, db_path_picker_, /* is manual */ true);
     RegisterCompaction(c);
     return c;
   }
@@ -659,7 +664,7 @@ Compaction* CompactionPicker::CompactRange(
       }
     }
   }
-  assert(output_path_id < static_cast<uint32_t>(ioptions_.cf_paths.size()));
+  assert(output_path_id < static_cast<int32_t>(ioptions_.cf_paths.size()));
 
   InternalKey key_storage;
   InternalKey* next_smallest = &key_storage;
@@ -725,11 +730,13 @@ Compaction* CompactionPicker::CompactRange(
       MaxFileSizeForLevel(mutable_cf_options, output_level,
                           ioptions_.compaction_style, vstorage->base_level(),
                           ioptions_.level_compaction_dynamic_level_bytes),
-      mutable_cf_options.max_compaction_bytes, output_path_id,
+      mutable_cf_options.max_compaction_bytes,
       GetCompressionType(ioptions_, vstorage, mutable_cf_options, output_level,
                          vstorage->base_level()),
       GetCompressionOptions(ioptions_, vstorage, output_level),
       max_subcompactions, std::move(grandparents),
+      output_path_id,
+      db_path_picker_,
       /* is manual compaction */ true);
 
   TEST_SYNC_POINT_CALLBACK("CompactionPicker::CompactRange:Return", compaction);
@@ -1377,12 +1384,12 @@ Compaction* LevelCompactionBuilder::GetCompaction() {
                           ioptions_.compaction_style, vstorage_->base_level(),
                           ioptions_.level_compaction_dynamic_level_bytes),
       mutable_cf_options_.max_compaction_bytes,
-      db_path_picker_->PickPathID(output_level_),
       GetCompressionType(ioptions_, vstorage_, mutable_cf_options_,
                          output_level_, vstorage_->base_level()),
       GetCompressionOptions(ioptions_, vstorage_, output_level_),
-      /* max_subcompactions */ 0, std::move(grandparents_), is_manual_,
-      start_level_score_, false /* deletion_compaction */, compaction_reason_);
+      /* max_subcompactions */ 0, std::move(grandparents_), -1, db_path_picker_,
+      is_manual_, start_level_score_, false /* deletion_compaction */,
+      compaction_reason_);
 
   // If it's level 0 compaction, make sure we don't execute any other level 0
   // compactions in parallel

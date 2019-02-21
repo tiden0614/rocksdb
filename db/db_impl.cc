@@ -252,6 +252,8 @@ DBImpl::DBImpl(const DBOptions& options, const std::string& dbname,
   // we won't drop any deletion markers until SetPreserveDeletesSequenceNumber()
   // is called by client and this seqnum is advanced.
   preserve_deletes_seqnum_.store(0);
+
+  data_dir_supplier_.reset(new DataDirSupplier(this));
 }
 
 Status DBImpl::Resume() {

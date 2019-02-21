@@ -300,9 +300,10 @@ class ColumnFamilyData {
   // REQUIRES: DB mutex held
   Compaction* CompactRange(const MutableCFOptions& mutable_cf_options,
                            int input_level, int output_level,
-                           uint32_t output_path_id, uint32_t max_subcompactions,
+                           uint32_t max_subcompactions,
                            const InternalKey* begin, const InternalKey* end,
-                           InternalKey** compaction_end, bool* manual_conflict);
+                           InternalKey** compaction_end, bool* manual_conflict,
+                           int32_t output_path_id = -1);
 
   CompactionPicker* compaction_picker() { return compaction_picker_.get(); }
   // thread-safe

@@ -28,9 +28,10 @@ class FIFOCompactionPicker : public CompactionPicker {
   virtual Compaction* CompactRange(
       const std::string& cf_name, const MutableCFOptions& mutable_cf_options,
       VersionStorageInfo* vstorage, int input_level, int output_level,
-      uint32_t output_path_id, uint32_t max_subcompactions,
+      uint32_t max_subcompactions,
       const InternalKey* begin, const InternalKey* end,
-      InternalKey** compaction_end, bool* manual_conflict) override;
+      InternalKey** compaction_end, bool* manual_conflict,
+      int32_t output_path_id) override;
 
   // The maximum allowed output level.  Always returns 0.
   virtual int MaxOutputLevel() const override { return 0; }

@@ -212,11 +212,12 @@ Compaction::Compaction(VersionStorageInfo* vstorage,
                        const MutableCFOptions& _mutable_cf_options,
                        std::vector<CompactionInputFiles> _inputs,
                        int _output_level, uint64_t _target_file_size,
-                       uint64_t _max_compaction_bytes, uint32_t _output_path_id,
+                       uint64_t _max_compaction_bytes,
                        CompressionType _compression,
                        CompressionOptions _compression_opts,
                        uint32_t _max_subcompactions,
                        std::vector<FileMetaData*> _grandparents,
+                       int32_t _output_path_id, DbPathPicker* db_path_picker,
                        bool _manual_compaction, double _score,
                        bool _deletion_compaction,
                        CompactionReason _compaction_reason)
@@ -232,6 +233,7 @@ Compaction::Compaction(VersionStorageInfo* vstorage,
       number_levels_(vstorage->num_levels()),
       cfd_(nullptr),
       output_path_id_(_output_path_id),
+      db_path_picker_(db_path_picker),
       output_compression_(_compression),
       output_compression_opts_(_compression_opts),
       deletion_compaction_(_deletion_compaction),
@@ -299,6 +301,34 @@ bool Compaction::InputCompressionMatchesOutput() const {
   return matches;
 }
 
+bool Compaction::IsTrivialDiffLevelSamePathMove() const {
+  if (start_level_ == output_level_) {
+    return false;
+  }
+
+  if (num_input_levels() != 1) {
+    return false;
+  }
+
+  uint32_t input_path_id = input(0, 0)->fd.GetPathId();
+  if (output_path_id_ >= 0) {
+    // is the input path the same as the designated output path?
+    return input_path_id == output_path_id();
+  }
+
+  // output_path_id_ < 0
+
+  if (db_path_picker_ == nullptr) {
+    // the output path id is 0 in this case
+    return input_path_id == 0;
+  }
+
+  // db_path_picker_ != nullptr
+  // we are free to choose an output path. that means we can choose the same
+  // path as the input
+  return true;
+}
+
 bool Compaction::IsTrivialMove() const {
   // Avoid a move if there is lots of overlapping grandparent data.
   // Otherwise, the move could create a parent file that will require
@@ -328,8 +358,7 @@ bool Compaction::IsTrivialMove() const {
   }
 
   if (!(start_level_ != output_level_ && num_input_levels() == 1 &&
-          input(0, 0)->fd.GetPathId() == output_path_id() &&
-          InputCompressionMatchesOutput())) {
+      IsTrivialDiffLevelSamePathMove() && InputCompressionMatchesOutput())) {
     return false;
   }
 
