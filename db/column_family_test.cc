@@ -3399,7 +3399,6 @@ TEST_P(ColumnFamilyTest, CompactToRandomCFPathsTest) {
   std::string record_val("zhadaryl-test-valueab"); // each batch is around
                                                    // 1KB in size
   int num_records = 5000; // this results in 10 batches
-  int num_files = num_records / target_batch_size;
 
   ColumnFamilyOptions cf_opt;
   for (int icf_path = 0; icf_path < num_paths; icf_path++) {
@@ -3431,7 +3430,7 @@ TEST_P(ColumnFamilyTest, CompactToRandomCFPathsTest) {
   // wait for compaction to finish
   WaitForCompaction();
 
-  // now we should have 10 compacted files. they should
+  // now we should have some compacted files. they should
   // scatter in all paths we have specified
 
   int total_files = 0;

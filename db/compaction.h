@@ -177,7 +177,7 @@ class Compaction {
     // output_path_id_ < 0 means that we can dynamically
     // pick a path... if the path id picker is set
     if (db_path_picker_ != nullptr) {
-      db_path_picker_->PickPathID(output_level_);
+      return db_path_picker_->PickPathID(output_level_);
     }
 
     // no path id picker was set.. then the only safe option

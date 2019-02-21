@@ -1436,9 +1436,16 @@ Status CompactionJob::InstallCompactionResults(
       compaction->edit()->AddFile(compaction->output_level(), out.meta);
     }
   }
+
+  Directory* db_dir = nullptr;
+
+  if (data_dir_supplier_) {
+    db_dir = data_dir_supplier_->GetDbDir();
+  }
+
   return versions_->LogAndApply(compaction->column_family_data(),
                                 mutable_cf_options, compaction->edit(),
-                                db_mutex_, data_dir_supplier_->GetDbDir());
+                                db_mutex_, db_dir);
 }
 
 void CompactionJob::RecordCompactionIOStats() {
