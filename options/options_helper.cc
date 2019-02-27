@@ -201,6 +201,9 @@ ColumnFamilyOptions BuildColumnFamilyOptions(
   // TODO(yhchiang): find some way to handle the following derived options
   // * max_file_size
 
+  cf_opts.cf_paths = options.cf_paths;
+  cf_opts.cf_path_use_strategy = options.cf_path_use_strategy;
+
   return cf_opts;
 }
 
@@ -216,6 +219,11 @@ std::map<CompactionPri, std::string> OptionsHelper::compaction_pri_to_string = {
     {kOldestLargestSeqFirst, "kOldestLargestSeqFirst"},
     {kOldestSmallestSeqFirst, "kOldestSmallestSeqFirst"},
     {kMinOverlappingRatio, "kMinOverlappingRatio"}};
+
+std::map<DbPathUseStrategy, std::string>
+        OptionsHelper::db_path_use_strategy_to_string = {
+    {kRespectTargetSize, "kRespectTargetSize"},
+    {kRandomlyChoosePath, "kRandomlyChoosePath"}};
 
 std::map<CompactionStopStyle, std::string>
     OptionsHelper::compaction_stop_style_to_string = {

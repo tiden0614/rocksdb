@@ -151,6 +151,7 @@ struct OptionsHelper {
   static std::map<CompactionPri, std::string> compaction_pri_to_string;
   static std::map<CompactionStopStyle, std::string>
       compaction_stop_style_to_string;
+  static std::map<DbPathUseStrategy, std::string> db_path_use_strategy_to_string;
   static std::unordered_map<std::string, ChecksumType> checksum_type_string_map;
   static std::unordered_map<std::string, CompressionType>
       compression_type_string_map;
@@ -196,6 +197,8 @@ static auto& compaction_style_to_string =
 static auto& compaction_pri_to_string = OptionsHelper::compaction_pri_to_string;
 static auto& compaction_stop_style_to_string =
     OptionsHelper::compaction_stop_style_to_string;
+static auto& db_path_use_strategy_to_string =
+    OptionsHelper::db_path_use_strategy_to_string;
 static auto& checksum_type_string_map = OptionsHelper::checksum_type_string_map;
 #ifndef ROCKSDB_LITE
 static auto& cf_options_type_info = OptionsHelper::cf_options_type_info;

@@ -17,6 +17,7 @@
 #include "rocksdb/sst_file_manager.h"
 #include "rocksdb/wal_filter.h"
 #include "util/logging.h"
+#include "options/options_helper.h"
 
 namespace rocksdb {
 
@@ -218,6 +219,29 @@ void ImmutableDBOptions::Dump(Logger* log) const {
                    two_write_queues);
   ROCKS_LOG_HEADER(log, "            Options.manual_wal_flush: %d",
                    manual_wal_flush);
+
+  std::string db_paths_str;
+  if (!db_paths.empty()) {
+    db_paths_str += "\n";
+    for (auto &p : db_paths) {
+      db_paths_str += "\t" + p.ToString() + "\n";
+    }
+  }
+  ROCKS_LOG_HEADER(log, "                    Options.db_paths: %s",
+                   db_paths_str.c_str());
+
+  const auto& it_db_path_use_strategy =
+          db_path_use_strategy_to_string.find(db_path_use_strategy);
+  std::string str_db_path_use_strategy;
+  if (it_db_path_use_strategy == db_path_use_strategy_to_string.end()) {
+    assert(false);
+    str_db_path_use_strategy = "unknown_" + std::to_string(db_path_use_strategy);
+  } else {
+    str_db_path_use_strategy = it_db_path_use_strategy->second;
+  }
+  ROCKS_LOG_HEADER(log,
+                   "                       Options.compaction_style: %s",
+                   str_db_path_use_strategy.c_str());
 }
 
 MutableDBOptions::MutableDBOptions()

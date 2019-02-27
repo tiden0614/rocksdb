@@ -84,6 +84,11 @@ struct DbPath {
   DbPath() : target_size(0) {}
   DbPath(const std::string& p) : path(p), target_size(0) {}
   DbPath(const std::string& p, uint64_t t) : path(p), target_size(t) {}
+
+  std::string ToString() const {
+    return "DbPath [path: " + path + ", target_size: "
+           + std::to_string(target_size) + "]";
+  }
 };
 
 enum DbPathUseStrategy : unsigned char {

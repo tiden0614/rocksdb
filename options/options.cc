@@ -351,6 +351,29 @@ void ColumnFamilyOptions::Dump(Logger* log) const {
     ROCKS_LOG_HEADER(log, "               Options.report_bg_io_stats: %d",
                      report_bg_io_stats);
     ROCKS_LOG_HEADER(log, "                              Options.ttl: %d", ttl);
+
+    std::string cf_paths_str;
+    if (!cf_paths.empty()) {
+      cf_paths_str += "\n";
+      for (auto &p : cf_paths) {
+        cf_paths_str += "\t" + p.ToString() + "\n";
+      }
+    }
+    ROCKS_LOG_HEADER(log, "                         Options.cf_paths: %s",
+                     cf_paths_str.c_str());
+
+    const auto& it_cf_path_use_strategy =
+            db_path_use_strategy_to_string.find(cf_path_use_strategy);
+    std::string str_cf_path_use_strategy;
+    if (it_cf_path_use_strategy == db_path_use_strategy_to_string.end()) {
+      assert(false);
+      str_cf_path_use_strategy = "unknown_" + std::to_string(cf_path_use_strategy);
+    } else {
+      str_cf_path_use_strategy = it_cf_path_use_strategy->second;
+    }
+    ROCKS_LOG_HEADER(log,
+                     "                  Options.cf_path_use_strategy: %s",
+                     str_cf_path_use_strategy.c_str());
 }  // ColumnFamilyOptions::Dump
 
 void Options::Dump(Logger* log) const {
