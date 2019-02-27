@@ -79,3 +79,4 @@ zlib-*
 zstd-*
 lz4-*
 snappy-*
+cmake-build-debug
