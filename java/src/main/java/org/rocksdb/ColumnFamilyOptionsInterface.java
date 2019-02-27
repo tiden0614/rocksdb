@@ -461,7 +461,7 @@ public interface ColumnFamilyOptionsInterface
    *
    * Default: empty
    *
-   * @param dbPaths the paths and target sizes
+   * @param cfPaths the paths and target sizes
    *
    * @return the reference to the current options
    */
