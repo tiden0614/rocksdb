@@ -16,6 +16,7 @@ LDFLAGS += $(EXTRA_LDFLAGS)
 MACHINE ?= $(shell uname -m)
 ARFLAGS = ${EXTRA_ARFLAGS} rs
 STRIPFLAGS = -S -x
+JAVA_STATIC_FLAGS += ${EXTRA_JAVA_STATIC_FLAGS}
 
 # Transform parallel LOG output into something more readable.
 perl_command = perl -n \
@@ -1737,6 +1738,7 @@ endif
 	mkdir snappy-$(SNAPPY_VER)/build
 	cd snappy-$(SNAPPY_VER)/build && CFLAGS='-fPIC ${EXTRA_CFLAGS}' CXXFLAGS='-fPIC ${EXTRA_CXXFLAGS}' LDFLAGS='${EXTRA_LDFLAGS}' cmake -DCMAKE_POSITION_INDEPENDENT_CODE=ON .. && $(MAKE) ${SNAPPY_MAKE_TARGET}
 	cp snappy-$(SNAPPY_VER)/build/libsnappy.a .
+	cp snappy-$(SNAPPY_VER)/build/snappy-stubs-public.h snappy-$(SNAPPY_VER)/
 
 liblz4.a:
 	-rm -rf lz4-$(LZ4_VER)
@@ -1799,7 +1801,7 @@ $(java_static_libobjects): jls/%.o: %.cc $(JAVA_COMPRESSIONS)
 rocksdbjavastatic: $(java_static_all_libobjects)
 	cd java;$(MAKE) javalib;
 	rm -f ./java/target/$(ROCKSDBJNILIB)
-	$(CXX) $(CXXFLAGS) -I./java/. $(JAVA_INCLUDE) -shared -fPIC \
+	$(CXX) $(CXXFLAGS) -I./java/. $(JAVA_INCLUDE) -shared $(JAVA_STATIC_FLAGS) -fPIC \
 	  -o ./java/target/$(ROCKSDBJNILIB) $(JNI_NATIVE_SOURCES) \
 	  $(java_static_all_libobjects) $(COVERAGEFLAGS) \
 	  $(JAVA_COMPRESSIONS) $(JAVA_STATIC_LDFLAGS)
