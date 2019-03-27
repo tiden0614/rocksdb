@@ -1417,7 +1417,7 @@ uint32_t RandomDPP::PickPathID(int level, uint64_t file_size) {
   auto size32 = static_cast<uint32_t>(size_);
 
   auto now = std::chrono::high_resolution_clock::now();
-  long count = now.time_since_epoch().count();
+  uint32_t count = static_cast<uint32_t>(now.time_since_epoch().count());
 
   Random rand(count);
   return rand.Next() % size32;
