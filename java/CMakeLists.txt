@@ -104,6 +104,7 @@ set(NATIVE_JAVA_CLASSES
         org.rocksdb.ComparatorOptions
         org.rocksdb.CompressionOptions
         org.rocksdb.DBOptions
+        org.rocksdb.DbPathUseStrategy
         org.rocksdb.DirectComparator
         org.rocksdb.DirectSlice
         org.rocksdb.Env
@@ -241,6 +242,7 @@ add_jar(
   src/main/java/org/rocksdb/DBOptionsInterface.java
   src/main/java/org/rocksdb/DBOptions.java
   src/main/java/org/rocksdb/DbPath.java
+  src/main/java/org/rocksdb/DbPathUseStrategy.java
   src/main/java/org/rocksdb/DirectComparator.java
   src/main/java/org/rocksdb/DirectSlice.java
   src/main/java/org/rocksdb/EncodingType.java
