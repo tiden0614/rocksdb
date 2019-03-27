@@ -546,6 +546,8 @@ if test -z "$PORTABLE"; then
   fi
 elif test "$USE_SSE"; then
   COMMON_FLAGS="$COMMON_FLAGS -msse4.2 -mpclmul"
+elif test -z "$TARGET_MARCH"; then
+  COMMON_FLAGS="$COMMON_FLAGS -march=$TARGET_MARCH"
 fi
 
 $CXX $PLATFORM_CXXFLAGS $COMMON_FLAGS -x c++ - -o /dev/null 2>/dev/null <<EOF
