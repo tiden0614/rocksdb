@@ -48,7 +48,7 @@ class DbPathPicker;
 struct SuperVersionContext;
 
 extern const double kIncSlowdownRatio;
-static const uint32_t DEFAULT_PATH_ID = static_cast<const uint32_t>(0);
+static const uint32_t DEFAULT_PATH_ID = 0;
 
 // ColumnFamilyHandleImpl is the class that clients use to access different
 // column families. It has non-trivial destructor, which gets called when client
