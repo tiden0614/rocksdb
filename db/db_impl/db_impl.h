@@ -22,6 +22,7 @@
 #include "db/column_family.h"
 #include "db/compaction/compaction_job.h"
 #include "db/dbformat.h"
+#include "db/directories.h"
 #include "db/error_handler.h"
 #include "db/event_helpers.h"
 #include "db/external_sst_file_ingestion_job.h"
@@ -78,37 +79,6 @@ struct JobContext;
 struct ExternalSstFileInfo;
 struct MemTableInfo;
 
-// Class to maintain directories for all database paths other than main one.
-class Directories {
- public:
-  Status SetDirectories(Env* env, const std::string& dbname,
-                        const std::string& wal_dir,
-                        const std::vector<DbPath>& data_paths);
-
-  Directory* GetDataDir(size_t path_id) const {
-    assert(path_id < data_dirs_.size());
-    Directory* ret_dir = data_dirs_[path_id].get();
-    if (ret_dir == nullptr) {
-      // Should use db_dir_
-      return db_dir_.get();
-    }
-    return ret_dir;
-  }
-
-  Directory* GetWalDir() {
-    if (wal_dir_) {
-      return wal_dir_.get();
-    }
-    return db_dir_.get();
-  }
-
-  Directory* GetDbDir() { return db_dir_.get(); }
-
- private:
-  std::unique_ptr<Directory> db_dir_;
-  std::vector<std::unique_ptr<Directory>> data_dirs_;
-  std::unique_ptr<Directory> wal_dir_;
-};
 
 // While DB is the public interface of RocksDB, and DBImpl is the actual
 // class implementing it. It's the entrance of the core RocksdB engine.
@@ -768,8 +738,6 @@ class DBImpl : public DB {
                      const bool seq_per_batch, const bool batch_per_txn);
 
 
-  static Status CreateAndNewDirectory(Env* env, const std::string& dirname,
-                                      std::unique_ptr<Directory>* directory);
 
   // find stats map from stats_history_ with smallest timestamp in
   // the range of [start_time, end_time)

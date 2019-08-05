@@ -378,7 +378,6 @@ Compaction* LevelCompactionBuilder::GetCompaction() {
                           ioptions_.compaction_style, vstorage_->base_level(),
                           ioptions_.level_compaction_dynamic_level_bytes),
       mutable_cf_options_.max_compaction_bytes,
-      GetPathId(ioptions_, mutable_cf_options_, output_level_),
       GetCompressionType(ioptions_, vstorage_, mutable_cf_options_,
                          output_level_, vstorage_->base_level()),
       GetCompressionOptions(ioptions_, vstorage_, output_level_),

@@ -154,6 +154,7 @@ struct CompactionJob::SubcompactionState {
   uint64_t overlapped_bytes = 0;
   // A flag determine whether the key has been seen in ShouldStopBefore()
   bool seen_key = false;
+  DbPathSupplier* db_path_supplier;
 
   SubcompactionState(Compaction* c, Slice* _start, Slice* _end,
                      uint64_t size = 0)
@@ -169,7 +170,8 @@ struct CompactionJob::SubcompactionState {
         approx_size(size),
         grandparent_index(0),
         overlapped_bytes(0),
-        seen_key(false) {
+        seen_key(false),
+        db_path_supplier(c->GetDbPathSupplier()) {
     assert(compaction != nullptr);
   }
 
@@ -192,6 +194,7 @@ struct CompactionJob::SubcompactionState {
     grandparent_index = std::move(o.grandparent_index);
     overlapped_bytes = std::move(o.overlapped_bytes);
     seen_key = std::move(o.seen_key);
+    db_path_supplier = o.db_path_supplier;
     return *this;
   }
 
@@ -303,7 +306,7 @@ CompactionJob::CompactionJob(
     const EnvOptions env_options, VersionSet* versions,
     const std::atomic<bool>* shutting_down,
     const SequenceNumber preserve_deletes_seqnum, LogBuffer* log_buffer,
-    Directory* db_directory, Directory* output_directory, Statistics* stats,
+    Directory* db_directory, Statistics* stats,
     InstrumentedMutex* db_mutex, ErrorHandler* db_error_handler,
     std::vector<SequenceNumber> existing_snapshots,
     SequenceNumber earliest_write_conflict_snapshot,
@@ -326,7 +329,6 @@ CompactionJob::CompactionJob(
       preserve_deletes_seqnum_(preserve_deletes_seqnum),
       log_buffer_(log_buffer),
       db_directory_(db_directory),
-      output_directory_(output_directory),
       stats_(stats),
       db_mutex_(db_mutex),
       db_error_handler_(db_error_handler),
@@ -567,6 +569,31 @@ void CompactionJob::GenSubcompactionBoundaries() {
   }
 }
 
+Status CompactionJob::FsyncOutputPaths() {
+  std::unordered_set<uint32_t> path_ids;
+
+  // iterate all output files and collect their path ids into a set
+  auto sub_compact_itr = compact_->sub_compact_states.begin();
+  for (; sub_compact_itr != compact_->sub_compact_states.end(); sub_compact_itr++) {
+    auto output_itr = sub_compact_itr->outputs.begin();
+    for (; output_itr != sub_compact_itr->outputs.end(); output_itr++) {
+      path_ids.insert(output_itr->meta.fd.GetPathId());
+    }
+  }
+
+  // fsync all output file path ids
+  Status ret = Status::OK();
+  auto path_id_itr = path_ids.begin();
+  for (; path_id_itr != path_ids.end(); path_id_itr++) {
+    Status s = compact_->compaction->GetDbPathSupplier()->FsyncDbPath(*path_id_itr);
+    if (!s.ok()) {
+      ret = s;
+    }
+  }
+
+  return ret;
+}
+
 Status CompactionJob::Run() {
   AutoThreadOperationStageUpdater stage_updater(
       ThreadStatus::STAGE_COMPACTION_RUN);
@@ -617,8 +644,9 @@ Status CompactionJob::Run() {
     }
   }
 
-  if (status.ok() && output_directory_) {
-    status = output_directory_->Fsync();
+  // Fsync all path ids used by sub_compactions
+  if (status.ok()) {
+    status = FsyncOutputPaths();
   }
 
   if (status.ok()) {
@@ -1298,6 +1326,12 @@ Status CompactionJob::FinishCompactionOutputFile(
   if (s.ok()) {
     s = sub_compact->outfile->Close();
   }
+
+  // mutate db_path_supplier needs locking
+  db_mutex_->Lock();
+  sub_compact->db_path_supplier->AddFileSize(meta->fd.file_size);
+  db_mutex_->Unlock();
+
   sub_compact->outfile.reset();
 
   TableProperties tp;
@@ -1426,9 +1460,12 @@ Status CompactionJob::OpenCompactionOutputFile(
   assert(sub_compact->builder == nullptr);
   // no need to lock because VersionSet::next_file_number_ is atomic
   uint64_t file_number = versions_->NewFileNumber();
+  int output_level = sub_compact->compaction->output_level();
+  uint64_t output_path_id =
+      sub_compact->db_path_supplier->GetPathId(output_level);
   std::string fname =
       TableFileName(sub_compact->compaction->immutable_cf_options()->cf_paths,
-                    file_number, sub_compact->compaction->output_path_id());
+                    file_number, output_path_id);
   // Fire events.
   ColumnFamilyData* cfd = sub_compact->compaction->column_family_data();
 #ifndef ROCKSDB_LITE
@@ -1460,8 +1497,7 @@ Status CompactionJob::OpenCompactionOutputFile(
   }
 
   SubcompactionState::Output out;
-  out.meta.fd =
-      FileDescriptor(file_number, sub_compact->compaction->output_path_id(), 0);
+  out.meta.fd = FileDescriptor(file_number, output_path_id, 0);
   out.finished = false;
 
   sub_compact->outputs.push_back(out);

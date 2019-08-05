@@ -207,8 +207,9 @@ Compaction::Compaction(VersionStorageInfo* vstorage,
                        const MutableCFOptions& _mutable_cf_options,
                        std::vector<CompactionInputFiles> _inputs,
                        int _output_level, uint64_t _target_file_size,
-                       uint64_t _max_compaction_bytes, uint32_t _output_path_id,
+                       uint64_t _max_compaction_bytes,
                        CompressionType _compression,
+                       DbPathSupplier &db_path_supplier,
                        CompressionOptions _compression_opts,
                        uint32_t _max_subcompactions,
                        std::vector<FileMetaData*> _grandparents,
@@ -226,7 +227,6 @@ Compaction::Compaction(VersionStorageInfo* vstorage,
       input_version_(nullptr),
       number_levels_(vstorage->num_levels()),
       cfd_(nullptr),
-      output_path_id_(_output_path_id),
       output_compression_(_compression),
       output_compression_opts_(_compression_opts),
       deletion_compaction_(_deletion_compaction),
@@ -237,7 +237,8 @@ Compaction::Compaction(VersionStorageInfo* vstorage,
       is_full_compaction_(IsFullCompaction(vstorage, inputs_)),
       is_manual_compaction_(_manual_compaction),
       is_trivial_move_(false),
-      compaction_reason_(_compaction_reason) {
+      compaction_reason_(_compaction_reason),
+      db_path_supplier_(db_path_supplier) {
   MarkFilesBeingCompacted(true);
   if (is_manual_compaction_) {
     compaction_reason_ = CompactionReason::kManualCompaction;
@@ -322,9 +323,11 @@ bool Compaction::IsTrivialMove() const {
     return is_trivial_move_;
   }
 
+  bool path_id_move_not_needed =
+      db_path_supplier_->AcceptPathId(input(0, 0)->fd.GetPathId());
+
   if (!(start_level_ != output_level_ && num_input_levels() == 1 &&
-          input(0, 0)->fd.GetPathId() == output_path_id() &&
-          InputCompressionMatchesOutput())) {
+          path_id_move_not_needed && InputCompressionMatchesOutput())) {
     return false;
   }
 

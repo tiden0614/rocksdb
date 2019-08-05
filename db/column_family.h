@@ -14,6 +14,7 @@
 #include <vector>
 #include <atomic>
 
+#include "db/directories.h"
 #include "db/memtable_list.h"
 #include "db/table_cache.h"
 #include "db/table_properties_collector.h"
@@ -43,6 +44,7 @@ class DBImpl;
 class LogBuffer;
 class InstrumentedMutex;
 class InstrumentedMutexLock;
+class DbPathSupplier;
 struct SuperVersionContext;
 
 extern const double kIncSlowdownRatio;
@@ -495,8 +497,15 @@ class ColumnFamilyData {
 
   Directory* GetDataDir(size_t path_id) const;
 
+  // Compared to GetDataDir (which only returns cf_path or nullptr), this
+  // method looks at cf_paths, db_paths and dbname.
+  // Similar to DBImpl::GetDataDir(ColumnFamilyData*, size_t).
+  Directory* GetCfAndDbDir(uint32_t path_id) const;
+
   ThreadLocalPtr* TEST_GetLocalSV() { return local_sv_.get(); }
 
+  std::shared_ptr<DbPathSupplier>& GetDbPathSupplier() { return db_path_supplier_; }
+  
  private:
   friend class ColumnFamilySet;
   ColumnFamilyData(uint32_t id, const std::string& name,
@@ -506,7 +515,8 @@ class ColumnFamilyData {
                    const ImmutableDBOptions& db_options,
                    const EnvOptions& env_options,
                    ColumnFamilySet* column_family_set,
-                   BlockCacheTracer* const block_cache_tracer);
+                   BlockCacheTracer* const block_cache_tracer,
+                   Directories* db_dirs);
 
   uint32_t id_;
   const std::string name_;
@@ -584,6 +594,10 @@ class ColumnFamilyData {
 
   // Directories corresponding to cf_paths.
   std::vector<std::unique_ptr<Directory>> data_dirs_;
+  
+  std::shared_ptr<DbPathSupplier> db_path_supplier_;
+
+  Directories* db_dirs_;
 };
 
 // ColumnFamilySet has interesting thread-safety requirements
@@ -695,6 +709,11 @@ class ColumnFamilySet {
   WriteBufferManager* write_buffer_manager_;
   WriteController* write_controller_;
   BlockCacheTracer* const block_cache_tracer_;
+
+  // A separate copy of db_dirs that's similar to the one held by db_impl.
+  // Initialized inside ColumnFamilySet constructor. This is to be passed
+  // to each ColumnFamilyData to provide db_paths.
+  Directories db_dirs_;
 };
 
 // We use ColumnFamilyMemTablesImpl to provide WriteBatch a way to access

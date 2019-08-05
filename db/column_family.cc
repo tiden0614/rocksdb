@@ -406,7 +406,7 @@ ColumnFamilyData::ColumnFamilyData(
     Cache* _table_cache, WriteBufferManager* write_buffer_manager,
     const ColumnFamilyOptions& cf_options, const ImmutableDBOptions& db_options,
     const EnvOptions& env_options, ColumnFamilySet* column_family_set,
-    BlockCacheTracer* const block_cache_tracer)
+    BlockCacheTracer* const block_cache_tracer, Directories* db_dirs)
     : id_(id),
       name_(name),
       dummy_versions_(_dummy_versions),
@@ -436,7 +436,8 @@ ColumnFamilyData::ColumnFamilyData(
       queued_for_compaction_(false),
       prev_compaction_needed_bytes_(0),
       allow_2pc_(db_options.allow_2pc),
-      last_memtable_id_(0) {
+      last_memtable_id_(0),
+      db_dirs_(db_dirs) {
   Ref();
 
   // Convert user defined table properties collector factories to internal ones.
@@ -1231,7 +1232,7 @@ Status ColumnFamilyData::AddDirectories() {
   assert(data_dirs_.empty());
   for (auto& p : ioptions_.cf_paths) {
     std::unique_ptr<Directory> path_directory;
-    s = DBImpl::CreateAndNewDirectory(ioptions_.env, p.path, &path_directory);
+    s = Directories::CreateAndNewDirectory(ioptions_.env, p.path, &path_directory);
     if (!s.ok()) {
       return s;
     }
@@ -1251,6 +1252,14 @@ Directory* ColumnFamilyData::GetDataDir(size_t path_id) const {
   return data_dirs_[path_id].get();
 }
 
+Directory* ColumnFamilyData::GetCfAndDbDir(uint32_t path_id) const {
+  Directory* ret_dir = GetDataDir(path_id);
+  if (ret_dir == nullptr) {
+    return db_dirs_->GetDataDir(path_id);
+  }
+  return ret_dir;
+}
+
 ColumnFamilySet::ColumnFamilySet(const std::string& dbname,
                                  const ImmutableDBOptions* db_options,
                                  const EnvOptions& env_options,
@@ -1261,7 +1270,7 @@ ColumnFamilySet::ColumnFamilySet(const std::string& dbname,
     : max_column_family_(0),
       dummy_cfd_(new ColumnFamilyData(
           0, "", nullptr, nullptr, nullptr, ColumnFamilyOptions(), *db_options,
-          env_options, nullptr, block_cache_tracer)),
+          env_options, nullptr, block_cache_tracer, &db_dirs_)),
       default_cfd_cache_(nullptr),
       db_name_(dbname),
       db_options_(db_options),
@@ -1273,6 +1282,7 @@ ColumnFamilySet::ColumnFamilySet(const std::string& dbname,
   // initialize linked list
   dummy_cfd_->prev_ = dummy_cfd_;
   dummy_cfd_->next_ = dummy_cfd_;
+  db_dirs_.SetDirectories(db_options->env, dbname, db_options->wal_dir, db_options->db_paths);
 }
 
 ColumnFamilySet::~ColumnFamilySet() {
@@ -1337,7 +1347,7 @@ ColumnFamilyData* ColumnFamilySet::CreateColumnFamily(
   assert(column_families_.find(name) == column_families_.end());
   ColumnFamilyData* new_cfd = new ColumnFamilyData(
       id, name, dummy_versions, table_cache_, write_buffer_manager_, options,
-      *db_options_, env_options_, this, block_cache_tracer_);
+      *db_options_, env_options_, this, block_cache_tracer_, &db_dirs_);
   column_families_.insert({name, id});
   column_family_data_.insert({id, new_cfd});
   max_column_family_ = std::max(max_column_family_, id);
