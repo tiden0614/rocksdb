@@ -88,11 +88,8 @@ class UniversalCompactionPicker : public CompactionPicker {
       const VersionStorageInfo& vstorage, const ImmutableCFOptions& ioptions,
       const MutableCFOptions& mutable_cf_options);
 
-  // Pick a path ID to place a newly generated file, with its estimated file
-  // size.
-  static uint32_t GetPathId(const ImmutableCFOptions& ioptions,
-                            const MutableCFOptions& mutable_cf_options,
-                            uint64_t file_size);
+  DbPathSupplier* GetDbPathSupplier(
+      const MutableCFOptions& moptions, uint64_t file_size);
 };
 }  // namespace rocksdb
 #endif  // !ROCKSDB_LITE
