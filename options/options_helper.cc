@@ -257,12 +257,12 @@ std::unordered_map<std::string, CompressionType>
         {"kZSTD", kZSTD},
         {"kZSTDNotFinalCompression", kZSTDNotFinalCompression},
         {"kDisableCompressionOption", kDisableCompressionOption}};
-//
-//std::unordered_map<std::string, DbPathPlacementStrategy>
-//    OptionsHelper::db_path_placement_strategy_string_map = {
-//      {"kGradualMoveOldDataTowardsEnd", kGradualMoveOldDataTowardsEnd},
-//      {"kRandomlyChoosePath", kRandomlyChoosePath},
-//};
+
+std::unordered_map<std::string, DbPathPlacementStrategy>
+    OptionsHelper::db_path_placement_strategy_string_map = {
+      {"kGradualMoveOldDataTowardsEnd", kGradualMoveOldDataTowardsEnd},
+      {"kRandomlyChoosePath", kRandomlyChoosePath},
+};
 #ifndef ROCKSDB_LITE
 
 const std::string kNameComparator = "comparator";
@@ -591,10 +591,10 @@ bool ParseOptionHelper(char* opt_address, const OptionType& opt_type,
       return ParseEnum<CompactionStopStyle>(
           compaction_stop_style_string_map, value,
           reinterpret_cast<CompactionStopStyle*>(opt_address));
-//    case OptionType::kDbPathPlacementStrategy:
-//      return ParseEnum<DbPathPlacementStrategy>(
-//          OptionsHelper::db_path_placement_strategy_string_map, value,
-//          reinterpret_cast<DbPathPlacementStrategy *>(opt_address));
+    case OptionType::kDbPathPlacementStrategy:
+      return ParseEnum<DbPathPlacementStrategy>(
+          OptionsHelper::db_path_placement_strategy_string_map, value,
+          reinterpret_cast<DbPathPlacementStrategy *>(opt_address));
     default:
       return false;
   }
@@ -793,10 +793,10 @@ bool SerializeSingleOptionHelper(const char* opt_address,
       return SerializeEnum<CompactionStopStyle>(
           compaction_stop_style_string_map,
           *reinterpret_cast<const CompactionStopStyle*>(opt_address), value);
-//    case OptionType::kDbPathPlacementStrategy:
-//      return SerializeEnum<DbPathPlacementStrategy>(
-//          db_path_placement_strategy_string_map,
-//          *reinterpret_cast<const DbPathPlacementStrategy*>(opt_address), value);
+    case OptionType::kDbPathPlacementStrategy:
+      return SerializeEnum<DbPathPlacementStrategy>(
+          db_path_placement_strategy_string_map,
+          *reinterpret_cast<const DbPathPlacementStrategy*>(opt_address), value);
     default:
       return false;
   }
@@ -1436,7 +1436,6 @@ std::unordered_map<std::string, OptionTypeInfo>
           std::shared_ptr<Statistics> statistics;
           std::vector<DbPath> db_paths;
           std::vector<std::shared_ptr<EventListener>> listeners;
-          DbPathPlacementStrategy db_path_placement_strategy;
          */
         {"advise_random_on_open",
          {offsetof(struct DBOptions, advise_random_on_open),
@@ -1690,6 +1689,10 @@ std::unordered_map<std::string, OptionTypeInfo>
           offsetof(struct ImmutableDBOptions, avoid_unnecessary_blocking_io)}},
         {"log_readahead_size",
          {offsetof(struct DBOptions, log_readahead_size), OptionType::kSizeT,
+          OptionVerificationType::kNormal, false, 0}},
+        {"db_path_placement_strategy",
+         {offsetof(struct DBOptions, db_path_placement_strategy),
+          OptionType::kDbPathPlacementStrategy,
           OptionVerificationType::kNormal, false, 0}},
 };
 
