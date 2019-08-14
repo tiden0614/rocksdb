@@ -296,7 +296,7 @@ TEST_F(OptionsSettableTest, DBOptionsAllFieldsSettable) {
                              "seq_per_batch=false;"
                              "atomic_flush=false;"
                              "avoid_unnecessary_blocking_io=false;"
-                             "log_readahead_size=0"
+                             "log_readahead_size=0;"
                              "db_path_placement_strategy=kGradualMoveOldDataTowardsEnd",
                              new_options));
 
