@@ -867,6 +867,10 @@ Compaction* UniversalCompactionPicker::PickDeleteTriggeredCompaction(
 
 DbPathSupplier* UniversalCompactionPicker::GetDbPathSupplier(
     const rocksdb::MutableCFOptions &moptions, uint64_t estimated_file_size) {
+  if (ioptions_.db_path_placement_strategy == kRandomlyChoosePath) {
+    return new RandomDbPathSupplier(ioptions_);
+  }
+
   return new UniversalTargetSizeDbPathSupplier(ioptions_, moptions, estimated_file_size);
 }
 
